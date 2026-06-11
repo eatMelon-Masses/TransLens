@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TransLens Settings</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <h1>TransLens</h1>
+        <span class="subtitle">Language Learning</span>
+      </div>
+      <nav>
+        <a href="#provider" class="nav-item active" data-section="provider">AI Provider</a>
+        <a href="#language" class="nav-item" data-section="language">Language</a>
+        <a href="#learning" class="nav-item" data-section="learning">Learning Mode</a>
+        <a href="#srs" class="nav-item" data-section="srs">SRS Settings</a>
+        <a href="#stats" class="nav-item" data-section="stats">Statistics</a>
+        <a href="#disabled" class="nav-item" data-section="disabled">Disabled Sites</a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="content">
+
+      <!-- AI Provider -->
+      <section id="provider" class="section">
+        <h2>AI Provider</h2>
+
+        <div class="provider-cards">
+          <label class="provider-card" data-value="openai">
+            <input type="radio" name="provider" value="openai" checked>
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/>
+              </svg>
+            </div>
+            <div class="card-label">OpenAI</div>
+            <div class="card-desc">GPT-4o / GPT-4o-mini</div>
+          </label>
+
+          <label class="provider-card" data-value="anthropic">
+            <input type="radio" name="provider" value="anthropic">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M12 2L2 12l10 10 10-10L12 2z"/>
+              </svg>
+            </div>
+            <div class="card-label">Anthropic</div>
+            <div class="card-desc">Claude Sonnet / Opus</div>
+          </label>
+
+          <label class="provider-card" data-value="custom">
+            <input type="radio" name="provider" value="custom">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4"/>
+              </svg>
+            </div>
+            <div class="card-label">Custom</div>
+            <div class="card-desc">Ollama / llama.cpp / 其他</div>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label for="apiKey">API Key</label>
+          <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
+          <span class="hint">Key 保存在本地，不会上传到任何服务器</span>
+        </div>
+
+        <div class="form-group">
+          <label for="model">Model</label>
+          <input type="text" id="model" placeholder="留空使用默认模型">
+        </div>
+
+        <div class="form-group hidden" id="customUrlGroup">
+          <label for="customUrl">Endpoint URL</label>
+          <input type="text" id="customUrl" placeholder="http://localhost:11434/v1/chat/completions">
+          <span class="hint">必须是 OpenAI兼容的 API 格式</span>
+        </div>
+
+        <div class="form-group">
+          <button id="testBtn" class="btn btn-secondary">Test Connection</button>
+          <span id="testResult" class="test-result"></span>
+        </div>
+      </section>
+
+      <!-- Language -->
+      <section id="language" class="section">
+        <h2>Language Pair</h2>
+
+        <div class="form-group">
+          <label for="sourceLang">Source Language (学习内容)</label>
+          <select id="sourceLang">
+            <option value="zh-CN">Chinese Simplified (简体中文)</option>
+            <option value="zh-TW">Chinese Traditional (繁體中文)</option>
+            <option value="ja">Japanese (日本語)</option>
+            <option value="ko">Korean (한국어)</option>
+            <option value="fr">French (Français)</option>
+            <option value="de">German (Deutsch)</option>
+            <option value="es">Spanish (Español)</option>
+            <option value="ru">Russian (Русский)</option>
+            <option value="ar">Arabic (العربية)</option>
+            <option value="custom">Custom (正则表达式)</option>
+          </select>
+        </div>
+
+        <div class="form-group hidden" id="customRegexGroup">
+          <label for="customRegex">Character Regex</label>
+          <input type="text" id="customRegex" placeholder='[\u4e00-\u9fff]+'>
+        </div>
+
+        <div class="form-group">
+          <label for="targetLang">Target Language (目标语言)</label>
+          <select id="targetLang">
+            <option value="en">English</option>
+            <option value="zh-CN">Chinese Simplified</option>
+            <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="es">Spanish</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- Learning Mode -->
+      <section id="learning" class="section">
+        <h2>Learning Mode</h2>
+
+        <div class="form-group">
+          <label>Mode</label>
+          <div class="radio-group">
+            <label><input type="radio" name="mode" value="vocabulary" checked> Vocabulary (词汇标注)</label>
+            <label><input type="radio" name="mode" value="sentence"> Sentence (整句翻译)</label>
+          </div>
+          <span class="hint">Vocabulary: 标注关键词汇 | Sentence: 翻译整句并替换</span>
+        </div>
+
+        <div class="form-group">
+          <label for="selectRatio">Selection Ratio</label>
+          <input type="range" id="selectRatio" min="10" max="100" value="40">
+          <span id="ratioValue" class="range-value">40%</span>
+        </div>
+
+        <div class="form-group">
+          <label for="minWordLen">Min Word Length</label>
+          <input type="number" id="minWordLen" min="1" max="10" value="2">
+        </div>
+      </section>
+
+      <!-- SRS Settings -->
+      <section id="srs" class="section">
+        <h2>SRS Settings</h2>
+
+        <div class="form-group">
+          <label for="intervalMultiplier">Interval Multiplier</label>
+          <input type="number" id="intervalMultiplier" min="1.1" max="5" step="0.1" value="2.5">
+          <span class="hint">每次复习后间隔天数乘以该值</span>
+        </div>
+
+        <div class="form-group">
+          <label for="maxNewWords">Max New Words / Day</label>
+          <input type="number" id="maxNewWords" min="1" max="200" value="50">
+        </div>
+
+        <div class="form-group">
+          <label for="masteryThreshold">Mastery Threshold</label>
+          <input type="number" id="masteryThreshold" min="3" max="20" value="6">
+          <span class="hint">连续认识 N 次后不再标注该词</span>
+        </div>
+      </section>
+
+      <!-- Statistics -->
+      <section id="stats" class="section">
+        <h2>Statistics</h2>
+        <div id="statsContent" class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-number" id="totalWords">0</div>
+            <div class="stat-label">Total Words</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="masteredWords">0</div>
+            <div class="stat-label">Mastered</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="dueWords">0</div>
+            <div class="stat-label">Due for Review</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="todayNew">0</div>
+            <div class="stat-label">New Today</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Disabled Sites -->
+      <section id="disabled" class="section">
+        <h2>Disabled Sites</h2>
+        <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">
+          在这些网站上 TransLens 不会自动翻译
+        </p>
+        <div id="disabledSitesList" style="margin-bottom: 12px;"></div>
+        <div class="form-group">
+          <button id="clearDisabledBtn" class="btn btn-secondary">Clear Disabled List</button>
+        </div>
+      </section>
+
+      <!-- Save -->
+      <div style="position: sticky; bottom: 0; padding: 16px 0; border-top: 1px solid #e5e7eb; margin-top: 24px; background: #fff;">
+        <button id="saveBtn" class="btn btn-primary" style="width: 100%;">Save Settings</button>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="settings.js"></script>
+</body>
+</html>

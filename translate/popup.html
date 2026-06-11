@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 300px;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #fff;
+      color: #111827;
+    }
+    h1 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .subtitle {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-bottom: 16px;
+    }
+    .status {
+      padding: 12px;
+      background: #f3f4f6;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    .status-row:last-child { margin-bottom: 0; }
+    .status-label { color: #6b7280; }
+    .status-value { font-weight: 500; }
+    .status-value.ok { color: #059669; }
+    .status-value.warn { color: #d97706; }
+    .status-value.err { color: #dc2626; }
+    .btn {
+      width: 100%;
+      padding: 10px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #2563eb; }
+    .btn-secondary { background: #e5e7eb; color: #111827; }
+    .btn-secondary:hover { background: #d1d5db; }
+    .btn-danger { background: #fee2e2; color: #dc2626; }
+    .btn-danger:hover { background: #fecaca; }
+    .toggle-section { margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <h1>TransLens</h1>
+  <div class="subtitle">Language Learning Assistant</div>
+
+  <div class="status" id="statusArea">
+    <div class="status-row">
+      <span class="status-label">Provider</span>
+      <span class="status-value" id="providerDisplay">—</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">API Key</span>
+      <span class="status-value" id="keyDisplay">—</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">Languages</span>
+      <span class="status-value" id="langDisplay">—</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">Words Learned</span>
+      <span class="status-value" id="wordCount">0</span>
+    </div>
+  </div>
+
+  <div class="toggle-section" style="margin-bottom: 16px;">
+    <button class="btn btn-secondary" id="toggleSite" style="width: 100%;">
+      禁用此网站
+    </button>
+  </div>
+
+  <button class="btn" id="openSettings">Open Settings</button>
+
+  <script src="popup.js"></script>
+</body>
+</html>

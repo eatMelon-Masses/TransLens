@@ -1,378 +1,369 @@
-// Chrome插件内容脚本 - DOM遍历器
+// TransLens Content Script — Language Learning on Web Pages
+// 在浏览网页时自动标注生词，基于 SRS 间隔重复算法
 
-(function() {
-    'use strict';
+(function () {
+  "use strict";
 
-    console.log('[DOM遍历插件] 内容脚本已加载');
-    
-    let hasExecuted = false; // 防止重复执行
+  // ─── Config ────────────────────────────────────────────
 
-    // 执行主要功能
-    function executeMain() {
-        if (hasExecuted) {
-            console.log('[DOM遍历插件] 已经执行过，跳过');
-            return;
-        }
-        hasExecuted = true;
-        
-        console.log('done');
-        traverseAllNodes();
-        
-        // 新增：提取中文内容并进行翻译
-        setTimeout(() => {
-            extractAndTranslateChinese();
-        }, 1000); // 等待DOM遍历完成后再执行
+  const MARKER = "data-translens-processed"; // 已处理标记
+  let config = {}; // 从 chrome.storage.local 加载
+  let srsData = {}; // SRS 词库
+  let stats = { newToday: 0, today: getToday() }; // 今日统计
+
+  function getToday() {
+    return new Date().toDateString();
+  }
+
+  async function loadConfig() {
+    const { settings } = await chrome.storage.local.get("settings");
+    config = settings || {};
+    return config;
+  }
+
+  async function loadSRS() {
+    const { srsData: data } = await chrome.storage.local.get("srsData");
+    srsData = data || {};
+    return srsData;
+  }
+
+  async function saveSRS() {
+    await chrome.storage.local.set({ srsData });
+  }
+
+  // ─── Language Detection ────────────────────────────────
+  // 存储 source pattern 字符串，getLangPattern 每次创建新 RegExp 实例
+
+  const LANG_PATTERNS = {
+    "zh-CN": { name: "Chinese Simplified", source: "[\\u4e00-\\u9fff]{1,6}" },
+    "zh-TW": { name: "Chinese Traditional", source: "[\\u4e00-\\u9fff\\u3400-\\u4dbf]{1,6}" },
+    ja: { name: "Japanese", source: "[\\u3040-\\u309f\\u30a0-\\u30ff\\u4e00-\\u9fff\\u3400-\\u4dbf]{1,6}" },
+    ko: { name: "Korean", source: "[\\uac00-\\ud7af\\u1100-\\u11ff]{1,5}" },
+    fr: { name: "French", source: "[a-zA-Z\\u00c0-\\u024f]{2,}" },
+    de: { name: "German", source: "[a-zA-Z\\u00c0-\\u024f\\u00df\\u00e4\\u00f6\\u00fc\\u00c4\\u00d6\\u00dc]{2,}" },
+    es: { name: "Spanish", source: "[a-zA-Z\\u00c0-\\u024f\\u00f1\\u00d1]{2,}" },
+    ru: { name: "Russian", source: "[\\u0400-\\u04ff]{2,}" },
+    ar: { name: "Arabic", source: "[\\u0600-\\u06ff]{2,}" },
+  };
+
+  function getLangPattern() {
+    const lang = config.sourceLang || "zh-CN";
+    if (lang === "custom") {
+      return new RegExp(config.customRegex || "[\\u4e00-\\u9fff]{1,6}", "g");
     }
+    const entry = LANG_PATTERNS[lang] || LANG_PATTERNS["zh-CN"];
+    return new RegExp(entry.source, "g");
+  }
 
-    // 等待页面完全加载 - 多种触发机制
-    function waitForPageLoad() {
-        console.log(`[DOM遍历插件] 当前页面状态: ${document.readyState}`);
-        
-        // 方法1: 如果页面已经加载完成
-        if (document.readyState === 'complete') {
-            console.log('[DOM遍历插件] 页面已完成加载');
-            setTimeout(executeMain, 100); // 稍微延迟确保所有资源加载完成
-            return;
-        }
-        
-        // 方法2: 监听 DOMContentLoaded 事件
-        if (document.readyState === 'loading') {
-            console.log('[DOM遍历插件] 等待DOM加载完成...');
-            document.addEventListener('DOMContentLoaded', function() {
-                console.log('[DOM遍历插件] DOM内容已加载');
-                setTimeout(executeMain, 500);
-            });
-        }
-        
-        // 方法3: 监听 window.load 事件
-        window.addEventListener('load', function() {
-            console.log('[DOM遍历插件] 窗口加载完成');
-            setTimeout(executeMain, 100);
+  function getLangName() {
+    const lang = config.sourceLang || "zh-CN";
+    if (lang === "custom") return "Custom";
+    return LANG_PATTERNS[lang]?.name || "Chinese Simplified";
+  }
+
+  // ─── DOM Text Extraction ──────────────────────────────
+
+  function extractChineseTexts() {
+    const minLen = config.minWordLen || 2;
+    const results = [];
+
+    const walker = document.createTreeWalker(
+      document.body || document,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(node) {
+          const text = node.textContent.trim();
+          if (text.length < 2) return NodeFilter.FILTER_REJECT;
+
+          // 跳过已处理节点
+          if (node.parentElement?.getAttribute(MARKER)) {
+            return NodeFilter.FILTER_REJECT;
+          }
+
+          // 跳过 script/style 等
+          const parent = node.parentElement?.tagName.toLowerCase();
+          if (parent === "script" || parent === "style" || parent === "noscript") {
+            return NodeFilter.FILTER_REJECT;
+          }
+
+          // 检查是否包含目标语言字符
+          const checkPattern = getLangPattern();
+          if (checkPattern.test(text)) {
+            return NodeFilter.FILTER_ACCEPT;
+          }
+          return NodeFilter.FILTER_REJECT;
+        },
+      }
+    );
+
+    let textNode;
+    while ((textNode = walker.nextNode())) {
+      const text = textNode.textContent.trim();
+      if (text.length < 2) continue;
+
+      // 每次新建正则实例，避免 lastIndex 状态问题
+      const matchPattern = getLangPattern();
+      const matches = text.match(matchPattern) || [];
+      const validWords = matches.filter((w) => w.length >= minLen);
+
+      if (validWords.length > 0) {
+        results.push({
+          node: textNode,
+          text,
+          words: validWords,
+          parent: textNode.parentElement,
         });
-        
-        // 方法4: 备用延迟执行（确保一定会执行）
-        setTimeout(function() {
-            if (!hasExecuted) {
-                console.log('[DOM遍历插件] 备用触发机制执行');
-                executeMain();
-            }
-        }, 3000); // 3秒后强制执行
+      }
     }
 
-    // 递归遍历所有DOM节点
-    function traverseAllNodes() {
-        console.log('开始递归遍历DOM节点...');
-        
-        let nodeCount = 0;
-        
-        function traverseNode(node, depth = 0) {
-            nodeCount++;
-            
-            // 创建缩进以显示层级关系
-            const indent = '  '.repeat(depth);
-            
-            // 根据节点类型输出不同信息
-            switch(node.nodeType) {
-                case Node.ELEMENT_NODE:
-                    console.log(`${indent}元素节点: <${node.tagName.toLowerCase()}> ${getElementInfo(node)}`);
-                    break;
-                case Node.TEXT_NODE:
-                    const text = node.textContent.trim();
-                    if (text) {
-                        console.log(`${indent}文本节点: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
-                    }
-                    break;
-                case Node.COMMENT_NODE:
-                    console.log(`${indent}注释节点: <!-- ${node.textContent.substring(0, 30)}${node.textContent.length > 30 ? '...' : ''} -->`);
-                    break;
-                case Node.DOCUMENT_NODE:
-                    console.log(`${indent}文档节点: ${node.nodeName}`);
-                    break;
-                case Node.DOCUMENT_TYPE_NODE:
-                    console.log(`${indent}文档类型节点: <!DOCTYPE ${node.name}>`);
-                    break;
-                default:
-                    console.log(`${indent}其他节点类型 (${node.nodeType}): ${node.nodeName}`);
-            }
-            
-            // 递归遍历子节点
-            for (let i = 0; i < node.childNodes.length; i++) {
-                traverseNode(node.childNodes[i], depth + 1);
-            }
-        }
-        
-        // 获取元素节点的附加信息
-        function getElementInfo(element) {
-            const info = [];
-            
-            // ID
-            if (element.id) {
-                info.push(`id="${element.id}"`);
-            }
-            
-            // 类名
-            if (element.className && typeof element.className === 'string') {
-                const classes = element.className.trim();
-                if (classes) {
-                    info.push(`class="${classes}"`);
-                }
-            }
-            
-            // 部分重要属性
-            const importantAttrs = ['src', 'href', 'type', 'name', 'value'];
-            importantAttrs.forEach(attr => {
-                if (element.hasAttribute(attr)) {
-                    const value = element.getAttribute(attr);
-                    info.push(`${attr}="${value.length > 30 ? value.substring(0, 30) + '...' : value}"`);
-                }
-            });
-            
-            return info.length > 0 ? `(${info.join(', ')})` : '';
-        }
-        
-        // 从文档根节点开始遍历
-        traverseNode(document);
-        
-        console.log(`DOM遍历完成！总共遍历了 ${nodeCount} 个节点。`);
-        
-        // 输出统计信息
-        outputStatistics();
-    }
-    
-    // 输出DOM统计信息
-    function outputStatistics() {
-        console.log('\n=== DOM统计信息 ===');
-        
-        // 统计各类元素数量
-        const elementCounts = {};
-        const allElements = document.querySelectorAll('*');
-        
-        allElements.forEach(element => {
-            const tagName = element.tagName.toLowerCase();
-            elementCounts[tagName] = (elementCounts[tagName] || 0) + 1;
-        });
-        
-        console.log(`总元素数量: ${allElements.length}`);
-        console.log('元素类型统计:');
-        
-        // 按数量排序并显示
-        Object.entries(elementCounts)
-            .sort(([,a], [,b]) => b - a)
-            .slice(0, 10) // 只显示前10个最多的元素类型
-            .forEach(([tag, count]) => {
-                console.log(`  ${tag}: ${count}个`);
-            });
-        
-        // 其他统计信息
-        console.log(`文本节点数量: ${document.createTreeWalker(document, NodeFilter.SHOW_TEXT).nextNode() ? countTextNodes() : 0}`);
-        console.log(`注释节点数量: ${countCommentNodes()}`);
-        console.log(`页面标题: "${document.title}"`);
-        console.log(`页面URL: ${window.location.href}`);
-    }
-    
-    // 统计文本节点数量
-    function countTextNodes() {
-        let count = 0;
-        const walker = document.createTreeWalker(
-            document,
-            NodeFilter.SHOW_TEXT,
-            {
-                acceptNode: function(node) {
-                    return node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
-                }
-            }
-        );
-        
-        while (walker.nextNode()) {
-            count++;
-        }
-        return count;
-    }
-    
-    // 统计注释节点数量
-    function countCommentNodes() {
-        let count = 0;
-        const walker = document.createTreeWalker(
-            document,
-            NodeFilter.SHOW_COMMENT
-        );
-        
-        while (walker.nextNode()) {
-            count++;
-        }
-        return count;
-    }
-    
-    // 提取中文内容并进行翻译
-    function extractAndTranslateChinese() {
-        console.log('\n=== 开始提取中文内容 ===');
-        
-        const chineseTexts = extractChineseTexts();
-        console.log(`发现 ${chineseTexts.length} 个包含中文的文本节点`);
-        
-        if (chineseTexts.length === 0) {
-            console.log('未发现中文内容');
-            return;
-        }
-        
-        // 随机选择20%的中文句子
-        const selectedTexts = randomSelectTexts(chineseTexts, 0.4);
-        console.log(`随机选择了 ${selectedTexts.length} 个中文句子进行翻译：`);
-        
-        // 输出选中的句子
-        selectedTexts.forEach((textData, index) => {
-            console.log(`${index + 1}. "${textData.text}"`);
-        });
-        
-        // 对选中的句子进行翻译
-        translateSelectedTexts(selectedTexts);
-    }
-    
-    // 提取所有包含中文的文本节点
-    function extractChineseTexts() {
-        const chineseRegex = /[\u4e00-\u9fff]/;  // 中文字符范围
-        const chineseTexts = [];
-        
-        const walker = document.createTreeWalker(
-            document.body || document,
-            NodeFilter.SHOW_TEXT,
-            {
-                acceptNode: function(node) {
-                    const text = node.textContent.trim();
-                    // 过滤掉空文本、只有标点符号的文本，以及过短的文本
-                    if (text.length < 2) return NodeFilter.FILTER_REJECT;
-                    
-                    // 检查是否包含中文
-                    if (chineseRegex.test(text)) {
-                        return NodeFilter.FILTER_ACCEPT;
-                    }
-                    return NodeFilter.FILTER_REJECT;
-                }
-            }
-        );
-        
-        let textNode;
-        while (textNode = walker.nextNode()) {
-            const text = textNode.textContent.trim();
-            if (text.length >= 2) {
-                chineseTexts.push({
-                    node: textNode,
-                    text: text,
-                    parent: textNode.parentNode
-                });
-            }
-        }
-        
-        return chineseTexts;
-    }
-    
-    // 随机选择指定比例的文本
-    function randomSelectTexts(texts, percentage) {
-        const count = Math.max(1, Math.floor(texts.length * percentage));
-        const shuffled = [...texts].sort(() => Math.random() - 0.5);
-        return shuffled.slice(0, count);
-    }
-    
-    // 对选中的文本进行翻译
-    async function translateSelectedTexts(selectedTexts) {
-        console.log('\n=== 开始翻译选中的句子 ===');
-        
-        for (let i = 0; i < selectedTexts.length; i++) {
-            const textData = selectedTexts[i];
-            console.log(`正在翻译第 ${i + 1} 个句子: "${textData.text}"`);
-            
-            try {
-                const result = await callTranslateAPI(textData.text);
-                if (result && result.target_word && result.translation) {
-                    console.log(`  发现目标词汇: "${result.target_word}" -> "${result.translation}"`);
-                    
-                    // 在目标词汇后添加英文标注
-                    annotateWordInText(textData, result.target_word, result.translation);
-                } else {
-                    console.log(`  翻译API未返回有效结果`);
-                }
-            } catch (error) {
-                console.error(`  翻译失败:`, error);
-            }
-            
-            // 添加延迟避免API请求过于频繁
-            await new Promise(resolve => setTimeout(resolve, 500));
-        }
-        
-        console.log('=== 翻译完成 ===');
-    }
-    
-    // 调用翻译API
-    async function callTranslateAPI(sentence) {
-        const apiUrl = 'http://127.0.0.1:5000/translate';
-        
-        try {
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    sentence: sentence
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const result = await response.json();
-            return result;
-        } catch (error) {
-            console.error('API调用失败:', error);
-            throw error;
-        }
-    }
-    
-    // 在文本节点中的目标词汇后添加英文标注
-    function annotateWordInText(textData, targetWord, translation) {
-        const originalText = textData.text;
-        
-        // 检查原文本是否包含目标词汇
-        if (originalText.includes(targetWord)) {
-            console.log(`  标注前: "${originalText}"`);
-            
-            // 尝试创建带样式的HTML标注
-            if (textData.parent && textData.parent.innerHTML !== undefined) {
-                // 如果父元素支持innerHTML，使用HTML样式
-                const styledAnnotation = `<span style="color: #ff6b35; font-weight: bold; background-color: #fff3cd; padding: 1px 4px; border-radius: 3px; font-size: 0.85em; margin-left: 2px;">【${translation}】</span>`;
-                const currentHTML = textData.parent.innerHTML;
-                const newHTML = currentHTML.replace(new RegExp(targetWord, 'g'), `${targetWord}${styledAnnotation}`);
-                
-                try {
-                    textData.parent.innerHTML = newHTML;
-                    console.log(`  ✅ 成功添加带样式的英文标注`);
-                    console.log(`  标注后: "${targetWord}【${translation}】"`);
-                    return;
-                } catch (error) {
-                    console.log(`  ⚠️  HTML样式标注失败，使用文本标注: ${error.message}`);
-                }
-            }
-            
-            // 如果HTML样式失败，使用更明显的文本标注
-            const annotation = ` 【${translation}】`;
-            const newText = originalText.replace(new RegExp(targetWord, 'g'), `${targetWord}${annotation}`);
-            
-            console.log(`  标注后: "${newText}"`);
-            
-            // 更新DOM节点的文本内容
-            try {
-                textData.node.textContent = newText;
-                console.log(`  ✅ 成功添加文本标注`);
-            } catch (error) {
-                console.error(`  ❌ 添加标注失败:`, error);
-            }
-        } else {
-            console.log(`  ⚠️  原文本中未找到目标词汇 "${targetWord}"`);
-        }
+    return results;
+  }
+
+  // ─── SRS Engine ────────────────────────────────────────
+
+  function getWordState(word) {
+    return srsData[word] || null;
+  }
+
+  function createWordEntry(word) {
+    const now = Date.now();
+    const entry = {
+      word,
+      language: config.sourceLang || "zh-CN",
+      easiness: 2.5,
+      interval: 0,
+      repetitions: 0,
+      nextReview: now, // 新词立即需要学习
+      lastSeen: now,
+      translation: "",
+      contextCount: 1,
+      createdAt: now,
+      reviewCount: 0,
+    };
+    srsData[word] = entry;
+    return entry;
+  }
+
+  function shouldReview(word) {
+    const entry = getWordState(word);
+    if (!entry) return "new"; // 新词
+    if (entry.reviewCount >= (config.masteryThreshold || 6)) return "mastered"; // 已掌握
+    if (Date.now() >= entry.nextReview) return "due"; // 到期
+    return "not-due"; // 未到复习时间
+  }
+
+  function updateSRS(word, rating) {
+    // rating: 0=不认识, 1=有点印象, 2=认识
+    let entry = getWordState(word);
+    if (!entry) {
+      entry = createWordEntry(word);
     }
 
-    // 开始执行
-    waitForPageLoad();
-  
+    entry.lastSeen = Date.now();
+    entry.reviewCount++;
+
+    if (rating === 0) {
+      // 不认识 → 重置
+      entry.interval = 0;
+      entry.repetitions = 0;
+      entry.nextReview = Date.now() + 60000; // 1分钟后复习
+    } else if (rating === 1) {
+      // 有点印象 → 小间隔
+      entry.interval = Math.max(1, entry.interval);
+      entry.repetitions = 0;
+      entry.nextReview = Date.now() + entry.interval * 86400000;
+    } else {
+      // 认识 → 增大间隔
+      entry.easiness = Math.max(1.3, entry.easiness + 0.1);
+      entry.repetitions++;
+      const multiplier = config.intervalMultiplier || 2.5;
+      entry.interval =
+        entry.interval === 0 ? 1 : Math.round(entry.interval * multiplier);
+      entry.nextReview = Date.now() + entry.interval * 86400000;
+    }
+
+    saveSRS();
+    return entry;
+  }
+
+  // ─── Word Selection ────────────────────────────────────
+
+  function selectWordsForTranslation(textItems) {
+    const ratio = (config.selectRatio || 40) / 100;
+    const maxNew = config.maxNewWords || 50;
+    const candidates = [];
+
+    for (const item of textItems) {
+      for (const word of item.words) {
+        const state = shouldReview(word);
+        if (state === "mastered" || state === "not-due") continue;
+        if (state === "new" && stats.newToday >= maxNew) continue;
+
+        candidates.push({ item, word, state });
+      }
+    }
+
+    // 优先复习到期的词，然后是新词
+    candidates.sort((a, b) => {
+      if (a.state === "due" && b.state !== "due") return -1;
+      if (a.state !== "due" && b.state === "due") return 1;
+      return Math.random() - 0.5; // 同优先级随机
+    });
+
+    // 按选择比例选取
+    const count = Math.max(1, Math.floor(candidates.length * ratio));
+    return candidates.slice(0, count);
+  }
+
+  // ─── Translation API ───────────────────────────────────
+
+  async function translateWord(sentence, targetWord) {
+    const sourceLang = getLangName();
+    const targetLangName =
+      LANG_PATTERNS[config.targetLang || "en"]?.name || "English";
+
+    try {
+      const result = await chrome.runtime.sendMessage({
+        type: "TRANSLATE",
+        payload: {
+          sentence,
+          targetWord,
+          sourceLang,
+          targetLang: targetLangName,
+          settings: {
+            provider: config.provider,
+            apiKey: config.apiKey,
+            model: config.model,
+            customUrl: config.customUrl,
+          },
+        },
+      });
+
+      if (result?.error) {
+        console.error("[TransLens] Translation error:", result.error);
+        return null;
+      }
+
+      return result?.translation || null;
+    } catch (err) {
+      console.error("[TransLens] API call failed:", err);
+      return null;
+    }
+  }
+
+  // ─── DOM Annotation ────────────────────────────────────
+
+  function annotateWordInText(textData, targetWord, translation) {
+    const originalText = textData.text;
+    if (!originalText.includes(targetWord)) return false;
+
+    // 创建带样式的标注
+    const annotation = `<span style="color:#ff6b35;font-weight:600;background:#fff3cd;padding:1px 4px;border-radius:3px;font-size:0.85em;margin-left:2px;cursor:pointer;border-bottom:1px dashed #ff6b35;" title="${translation}">【${translation}】</span>`;
+
+    const currentHTML = textData.parent.innerHTML;
+
+    // 只替换第一次出现的 targetWord
+    const escaped = targetWord.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const newHTML = currentHTML.replace(
+      new RegExp(escaped, "g"),
+      (match) => `${match}${annotation}`
+    );
+
+    try {
+      textData.parent.innerHTML = newHTML;
+      textData.parent.setAttribute(MARKER, "true");
+      return true;
+    } catch (err) {
+      console.error("[TransLens] DOM annotation failed:", err);
+      return false;
+    }
+  }
+
+  // ─── Main Execution ────────────────────────────────────
+
+  async function execute() {
+    await loadConfig();
+    await loadSRS();
+
+    // 检查当前网站是否在禁用列表中
+    const currentHost = window.location.hostname;
+    const disabledSites = config.disabledSites || [];
+    if (disabledSites.includes(currentHost)) {
+      console.log(`[TransLens] 当前网站 ${currentHost} 已被禁用，跳过翻译`);
+      return;
+    }
+
+    if (!config.apiKey) {
+      console.log("[TransLens] No API Key configured, skipping.");
+      return;
+    }
+
+    console.log("[TransLens] Starting language learning scan...");
+    console.log(
+      `[TransLens] Config: ${config.sourceLang} → ${config.targetLang}, mode: ${config.mode || "vocabulary"}`
+    );
+
+    // 提取中文文本
+    const textItems = extractChineseTexts();
+    console.log(`[TransLens] Found ${textItems.length} text nodes with target language content`);
+
+    if (textItems.length === 0) return;
+
+    // 选择需要翻译的词
+    const selections = selectWordsForTranslation(textItems);
+    console.log(`[TransLens] Selected ${selections.length} words for translation`);
+
+    if (selections.length === 0) return;
+
+    // 去重（同一个词不重复翻译）
+    const seen = new Set();
+    const unique = selections.filter((s) => {
+      if (seen.has(s.word)) return false;
+      seen.add(s.word);
+      return true;
+    });
+
+    // 逐词翻译并标注
+    let annotated = 0;
+    for (const { item, word, state } of unique) {
+      if (state === "new") stats.newToday++;
+
+      const translation = await translateWord(item.text, word);
+      if (translation) {
+        // 更新 SRS 翻译缓存
+        let entry = getWordState(word);
+        if (!entry) entry = createWordEntry(word);
+        entry.translation = translation;
+        entry.contextCount = (entry.contextCount || 0) + 1;
+        saveSRS();
+
+        const success = annotateWordInText(item, word, translation);
+        if (success) annotated++;
+      }
+
+      // 限速：500ms 间隔
+      await sleep(500);
+    }
+
+    console.log(`[TransLens] Done. Annotated ${annotated} words.`);
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  // ─── Page Load Trigger ────────────────────────────────
+
+  function waitForPageLoad() {
+    if (document.readyState === "complete") {
+      setTimeout(execute, 500);
+    } else if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", () => setTimeout(execute, 500));
+    }
+    window.addEventListener("load", () => setTimeout(execute, 300));
+    // Fallback
+    setTimeout(execute, 3000);
+  }
+
+  waitForPageLoad();
 })();
