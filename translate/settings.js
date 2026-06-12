@@ -1,11 +1,18 @@
 // Settings Page — 逻辑
 
+const $ = (id) => document.getElementById(id);
+
+function bindRadio(name, value) {
+  const input = document.querySelector(`input[name="${name}"][value="${value}"]`);
+  if (input) input.checked = true;
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   const defaults = {
     provider: "openai",
     apiKey: "",
     model: "",
-    customUrl: "http://localhost:11434/v1/chat/completions",
+    customUrl: "",
     sourceLang: "zh-CN",
     targetLang: "en",
     customRegex: "",
@@ -19,21 +26,50 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Load saved settings
   const stored = await chrome.storage.local.get("settings");
-  const settings = stored.settings || { ...defaults };
+  let settings = stored.settings || { ...defaults };
 
-  // Populate form
-  const $ = (id) => document.getElementById(id);
+  const defaultProviders = {
+    openai: { apiKey: "", model: "" },
+    anthropic: { apiKey: "", model: "" },
+    custom: { apiKey: "", customUrl: "", model: "" }
+  };
 
-  function bindRadio(name, value) {
-    const el = document.querySelector(`input[name="${name}"][value="${value}"]`);
-    if (el) el.checked = true;
+  // 兼容旧版配置：如果是扁平结构，转换为按 provider 分开存储
+  function migrateSettings(s) {
+    if (s.providers) return s; // 已经是新版格式
+    return {
+      provider: s.provider || defaults.provider,
+      providers: {
+        openai: { apiKey: s.apiKey || "", model: s.model || "" },
+        anthropic: { apiKey: s.anthropicApiKey || "", model: s.anthropicModel || "" },
+        custom: { apiKey: s.customApiKey || "", customUrl: s.customUrl || "", model: s.customModel || "" }
+      },
+      sourceLang: s.sourceLang || defaults.sourceLang,
+      targetLang: s.targetLang || defaults.targetLang,
+      customRegex: s.customRegex || "",
+      mode: s.mode || defaults.mode,
+      selectRatio: s.selectRatio || defaults.selectRatio,
+      minWordLen: s.minWordLen || defaults.minWordLen,
+      intervalMultiplier: s.intervalMultiplier || defaults.intervalMultiplier,
+      maxNewWords: s.maxNewWords || defaults.maxNewWords,
+      masteryThreshold: s.masteryThreshold || defaults.masteryThreshold,
+      disabledSites: s.disabledSites || []
+    };
   }
 
-  bindRadio("provider", settings.provider);
+  settings = migrateSettings(settings);
+
+  settings.providers = {
+    openai: { ...defaultProviders.openai, ...settings.providers?.openai },
+    anthropic: { ...defaultProviders.anthropic, ...settings.providers?.anthropic },
+    custom: { ...defaultProviders.custom, ...settings.providers?.custom }
+  };
+
+  bindRadio("provider", settings.provider || "openai");
   bindRadio("mode", settings.mode);
-  $("apiKey").value = settings.apiKey || "";
-  $("model").value = settings.model || "";
-  $("customUrl").value = settings.customUrl || defaults.customUrl;
+  let currentProvider = settings.provider || "openai";
+
+
   $("sourceLang").value = settings.sourceLang || defaults.sourceLang;
   $("targetLang").value = settings.targetLang || defaults.targetLang;
   $("customRegex").value = settings.customRegex || "";
@@ -44,31 +80,61 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("maxNewWords").value = settings.maxNewWords || defaults.maxNewWords;
   $("masteryThreshold").value = settings.masteryThreshold || defaults.masteryThreshold;
 
-  // Toggle provider-specific fields - 直接绑定到 label 卡片上
-  function updateProviderUI() {
-    const checkedProvider = document.querySelector('input[name="provider"]:checked');
-    const provider = checkedProvider ? checkedProvider.value : "openai";
-    console.log("[Provider changed to]:", provider);
-
-    const customUrlGroup = $("customUrlGroup");
-    if (customUrlGroup) {
-      if (provider === "custom") {
-        customUrlGroup.classList.remove("hidden");
-      } else {
-        customUrlGroup.classList.add("hidden");
-      }
+  function saveProviderForm(provider) {
+    if (!settings.providers[provider]) {
+      settings.providers[provider] = { ...defaultProviders[provider] };
     }
+
+    if (provider === "custom") {
+      settings.providers.custom = {
+        ...settings.providers.custom,
+        apiKey: $("apiKey").value.trim(),
+        customUrl: $("customUrl").value.trim(),
+        model: $("model").value.trim()
+      };
+      return;
+    }
+
+    settings.providers[provider] = {
+      ...settings.providers[provider],
+      apiKey: $("apiKey").value.trim(),
+      model: $("model").value.trim()
+    };
   }
 
-  // 给每个 provider card 的 label 绑定点击事件
-  document.querySelectorAll(".provider-card").forEach((card) => {
-    card.addEventListener("click", () => {
-      setTimeout(updateProviderUI, 50); // 等待 radio 状态更新
-    });
+  function loadProviderForm(provider) {
+    const p = settings.providers[provider] || {};
+    $("apiKey").value = p.apiKey || "";
+    $("apiKey").placeholder = provider === "custom" ? "可选，用于需要 Bearer Token 的自定义接口" : "sk-...";
+    $("model").value = p.model || "";
+    $("customUrl").value = provider === "custom" ? (p.customUrl || "") : "";
+    $("customUrlGroup").classList.toggle("hidden", provider !== "custom");
+  }
+
+  function switchProvider(provider) {
+    if (provider === currentProvider) {
+      loadProviderForm(provider);
+      return;
+    }
+
+    saveProviderForm(currentProvider);
+    currentProvider = provider;
+    settings.provider = provider;
+    loadProviderForm(provider);
+  }
+
+  // 切换时显示/隐藏对应字段，并恢复对应 provider 的值
+  function updateProviderUI() {
+    const provider = document.querySelector('input[name="provider"]:checked')?.value || "openai";
+    switchProvider(provider);
+  }
+
+  document.querySelectorAll('input[name="provider"]').forEach((input) => {
+    input.addEventListener("change", updateProviderUI);
   });
 
   // 初始化显示状态
-  setTimeout(updateProviderUI, 100);
+  loadProviderForm(currentProvider);
 
   // Source language → custom regex
   $("sourceLang").addEventListener("change", (e) => {
@@ -112,11 +178,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const provider = document.querySelector('input[name="provider"]:checked')?.value || "openai";
     const mode = document.querySelector('input[name="mode"]:checked')?.value || "vocabulary";
 
+    saveProviderForm(provider);
+
     const newSettings = {
       provider,
-      apiKey: $("apiKey").value.trim(),
-      model: $("model").value.trim(),
-      customUrl: $("customUrl").value.trim(),
+      providers: settings.providers,
       sourceLang: $("sourceLang").value,
       targetLang: $("targetLang").value,
       customRegex: $("customRegex").value.trim(),
@@ -126,9 +192,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       intervalMultiplier: parseFloat($("intervalMultiplier").value),
       maxNewWords: parseInt($("maxNewWords").value),
       masteryThreshold: parseInt($("masteryThreshold").value),
+      disabledSites: settings.disabledSites || []
     };
 
     await chrome.storage.local.set({ settings: newSettings });
+    settings = newSettings;
+    currentProvider = provider;
     $("saveBtn").textContent = "Saved!";
     setTimeout(() => ($("saveBtn").textContent = "Save Settings"), 1500);
   });
@@ -141,9 +210,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     result.className = "test-result";
 
     const provider = document.querySelector('input[name="provider"]:checked')?.value || "openai";
-    const apiKey = $("apiKey").value.trim();
-    const model = $("model").value.trim();
-    const customUrl = $("customUrl").value.trim();
+    saveProviderForm(provider);
+    const p = settings.providers[provider] || {};
+    const apiKey = p.apiKey || "";
+    const model = p.model || "";
+    const customUrl = p.customUrl || "";
 
     if (!apiKey && provider !== "custom") {
       result.textContent = "Please enter an API Key";
@@ -229,8 +300,6 @@ async function updateStats() {
     (w) => w.createdAt && w.createdAt > now - dayMs
   ).length;
 
-  // Only update if elements exist (they do on settings page)
-  const $ = (id) => document.getElementById(id);
   if ($("totalWords")) $("totalWords").textContent = total;
   if ($("masteredWords")) $("masteredWords").textContent = mastered;
   if ($("dueWords")) $("dueWords").textContent = due;

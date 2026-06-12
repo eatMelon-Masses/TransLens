@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TransLens 标注样式预览 - 带音标</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      max-width: 800px;
+      margin: 60px auto;
+      padding: 20px;
+      line-height: 1.8;
+      color: #1f2937;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 24px;
+      color: #111827;
+    }
+    .sample {
+      background: #f9fafb;
+      padding: 24px;
+      border-radius: 12px;
+      margin: 20px 0;
+    }
+    .sample h3 {
+      font-size: 14px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 16px;
+    }
+
+    /* 新样式 - 底部虚线 + 行内翻译 + Hover 音标 */
+    .translens-annotation {
+      border-bottom: 2px dotted #4A90D9;
+      border-bottom-color: rgba(74,144,217,0.6);
+      padding-bottom: 1px;
+      margin-bottom: -1px;
+      cursor: help;
+      position: relative;
+      display: inline-block;
+    }
+    .translens-annotation:hover {
+      border-bottom-color: #4A90D9;
+    }
+    .translens-annotation:hover .translens-translation {
+      background: rgba(74,144,217,0.1);
+      color: #3B82F6;
+    }
+    .translens-translation {
+      display: inline-block;
+      font-size: 0.75em;
+      color: #6B7280;
+      color: rgba(107,114,128,0.9);
+      margin-left: 2px;
+      padding: 0 6px;
+      background: rgba(249,250,251,0.95);
+      border-radius: 4px;
+      font-weight: 500;
+      white-space: nowrap;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      transition: all 0.15s ease;
+    }
+
+    /* 音标 Popup */
+    .translens-phonetic-popup {
+      display: none;
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1F2937;
+      color: #F9FAFB;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.7em;
+      white-space: nowrap;
+      z-index: 10000;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      margin-bottom: 4px;
+    }
+    .translens-annotation:hover .translens-phonetic-popup {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h1>TransLens 标注样式预览</h1>
+  <p style="color: #6b7280; margin-bottom: 24px;"> 鼠标悬停在标注单词上，显示音标 Popup</p>
+
+  <div class="sample">
+    <h3>📝 新样式效果（带音标）</h3>
+    <p>
+      随着<span class="translens-annotation">政府
+        <span class="translens-translation">government</span>
+        <span class="translens-phonetic-popup">/ˈɡʌv.ɚn.mənt/</span>
+      </span>
+      逐步放宽入境<span class="translens-annotation">防疫
+        <span class="translens-translation">epidemic prevention</span>
+        <span class="translens-phonetic-popup">/ˌep.ɪˈdem.ɪk prɪˈven.ʃən/</span>
+      </span>
+      措施，香港的旅游大门在 2023 年年初全面打开。
+    </p>
+    <p>
+      旅发局除了继续加紧展开早已部署好的大量<span class="translens-annotation">宣传
+        <span class="translens-translation">promotion</span>
+        <span class="translens-phonetic-popup">/proʊˈmoʊ.ʃən/</span>
+      </span>
+      工作，亦乘着「Hello Hong Kong」全球大型宣传，成功向全球传递香港复常的
+      <span class="translens-annotation">讯息
+        <span class="translens-translation">message</span>
+        <span class="translens-phonetic-popup">/ˈmes.ɪdʒ/</span>
+      </span>。
+    </p>
+  </div>
+
+  <div class="sample">
+    <h3>🎨 设计特点</h3>
+    <ul style="color: #4b5563; font-size: 14px;">
+      <li><strong>默认状态</strong>：底部蓝色虚线 + 行内浅灰翻译</li>
+      <li><strong>Hover 状态</strong>：翻译背景变浅蓝 + 上方显示音标 Popup</li>
+      <li><strong>音标样式</strong>：深色背景 + 白色文字 + 圆角阴影</li>
+      <li><strong>不侵入</strong>：几乎不改变网页原貌，不影响阅读</li>
+    </ul>
+  </div>
+
+  <div class="sample">
+    <h3>🖱️ 交互示例</h3>
+    <p style="margin-bottom: 12px;">将鼠标移到以下单词上，查看音标显示效果：</p>
+    <p style="font-size: 16px; padding: 20px; background: white; border-radius: 8px;">
+      <span class="translens-annotation">学习
+        <span class="translens-translation">learn</span>
+        <span class="translens-phonetic-popup">/lɝːn/</span>
+      </span>
+      <span class="translens-annotation" style="margin-left: 12px;">语言
+        <span class="translens-translation">language</span>
+        <span class="translens-phonetic-popup">/ˈlæɡwɪdʒ/</span>
+      </span>
+      <span class="translens-annotation" style="margin-left: 12px;">翻译
+        <span class="translens-translation">translate</span>
+        <span class="translens-phonetic-popup">/trænzˈleɪt/</span>
+      </span>
+    </p>
+  </div>
+
+  <div class="sample">
+    <h3>📖 音标说明</h3>
+    <p style="color: #4b5563; font-size: 14px;">
+      采用<strong>简化国际音标 IPA</strong>（类似有道、百度翻译），不带声调符号：<br>
+      中文示例：<span class="translens-annotation">政府
+        <span class="translens-translation">government</span>
+        <span class="translens-phonetic-popup">/ʈʂəŋ fǔ/</span>
+      </span>（而非 <code style="font-size: 12px;">/ʈʂəŋ˥˩ fǔ˨˩/</code> 带声调）
+    </p>
+  </div>
+</body>
+</html>

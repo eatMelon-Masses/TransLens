@@ -222,6 +222,11 @@
     const targetLangName =
       LANG_PATTERNS[config.targetLang || "en"]?.name || "English";
 
+    // 从 per-provider 配置中读取当前 provider 的 API 信息
+    const provider = config.provider || "openai";
+    const providerConfig = config.providers?.[provider] || {};
+    const { apiKey = "", model = "", customUrl = "" } = providerConfig;
+
     try {
       const result = await chrome.runtime.sendMessage({
         type: "TRANSLATE",
@@ -230,12 +235,7 @@
           targetWord,
           sourceLang,
           targetLang: targetLangName,
-          settings: {
-            provider: config.provider,
-            apiKey: config.apiKey,
-            model: config.model,
-            customUrl: config.customUrl,
-          },
+          settings: { provider, apiKey, model, customUrl },
         },
       });
 
@@ -244,7 +244,10 @@
         return null;
       }
 
-      return result?.translation || null;
+      return {
+        translation: result?.translation || null,
+        phonetic: result?.phonetic || ""
+      };
     } catch (err) {
       console.error("[TransLens] API call failed:", err);
       return null;
@@ -253,21 +256,82 @@
 
   // ─── DOM Annotation ────────────────────────────────────
 
-  function annotateWordInText(textData, targetWord, translation) {
+  function annotateWordInText(textData, targetWord, translation, phonetic = "") {
     const originalText = textData.text;
     if (!originalText.includes(targetWord)) return false;
 
-    // 创建带样式的标注
-    const annotation = `<span style="color:#ff6b35;font-weight:600;background:#fff3cd;padding:1px 4px;border-radius:3px;font-size:0.85em;margin-left:2px;cursor:pointer;border-bottom:1px dashed #ff6b35;" title="${translation}">【${translation}】</span>`;
+    // 创建精美的标注样式（参考 Apple 词典 + 微信读书）
+    // 底部虚线 + 行内翻译，Hover 显示音标 tooltip
+    const phoneticHTML = phonetic ? `<div class="translens-phonetic" style="
+      font-size: 0.7em;
+      color: #9CA3AF;
+      color: rgba(156,163,175,0.9);
+      margin-bottom: 2px;
+      font-family: 'Arial Unicode MS', 'Lucida Sans Unicode', sans-serif;
+    ">${phonetic}</div>` : '';
+
+    const annotationHTML = `<span class="translens-annotation"
+      style="
+        border-bottom: 2px dotted #4A90D9;
+        border-bottom-color: rgba(74,144,217,0.6);
+        padding-bottom: 1px;
+        margin-bottom: -1px;
+        cursor: help;
+        position: relative;
+        display: inline-block;
+      "
+      data-translation="${translation}"
+      data-phonetic="${phonetic}">
+      ${targetWord}
+      <span class="translens-translation"
+        style="
+          display: inline-block;
+          font-size: 0.75em;
+          color: #6B7280;
+          color: rgba(107,114,128,0.9);
+          margin-left: 2px;
+          padding: 0 4px;
+          background: rgba(249,250,251,0.9);
+          border-radius: 4px;
+          font-weight: 500;
+          white-space: nowrap;
+        ">${translation}</span>
+      ${phonetic ? `<span class="translens-phonetic-popup"
+        style="
+          display: none;
+          position: absolute;
+          bottom: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #1F2937;
+          color: #F9FAFB;
+          padding: 4px 8px;
+          border-radius: 6px;
+          font-size: 0.7em;
+          white-space: nowrap;
+          z-index: 10000;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        ">${phonetic}</span>` : ''}
+    </span>`;
 
     const currentHTML = textData.parent.innerHTML;
 
-    // 只替换第一次出现的 targetWord
+    // 检查是否已经处理过（避免重复标注）
+    if (currentHTML.includes('class="translens-annotation"')) {
+      return false;
+    }
+
+    // 替换原文本节点中的目标词
     const escaped = targetWord.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const newHTML = currentHTML.replace(
-      new RegExp(escaped, "g"),
-      (match) => `${match}${annotation}`
-    );
+    const regex = new RegExp(escaped, 'g');
+
+    // 只替换第一个匹配项
+    let replaced = false;
+    const newHTML = currentHTML.replace(regex, (match) => {
+      if (replaced) return match;
+      replaced = true;
+      return annotationHTML;
+    });
 
     try {
       textData.parent.innerHTML = newHTML;
@@ -293,8 +357,12 @@
       return;
     }
 
-    if (!config.apiKey) {
-      console.log("[TransLens] No API Key configured, skipping.");
+    const provider = config.provider || "openai";
+    const providerConfig = config.providers?.[provider] || {};
+    const apiKey = providerConfig.apiKey || "";
+
+    if (provider !== "custom" && !apiKey) {
+      console.log("[TransLens] No API Key configured for " + provider + ", skipping.");
       return;
     }
 
@@ -328,16 +396,17 @@
     for (const { item, word, state } of unique) {
       if (state === "new") stats.newToday++;
 
-      const translation = await translateWord(item.text, word);
-      if (translation) {
+      const result = await translateWord(item.text, word);
+      if (result && result.translation) {
         // 更新 SRS 翻译缓存
         let entry = getWordState(word);
         if (!entry) entry = createWordEntry(word);
-        entry.translation = translation;
+        entry.translation = result.translation;
+        entry.phonetic = result.phonetic || "";
         entry.contextCount = (entry.contextCount || 0) + 1;
         saveSRS();
 
-        const success = annotateWordInText(item, word, translation);
+        const success = annotateWordInText(item, word, result.translation, result.phonetic);
         if (success) annotated++;
       }
 
@@ -363,6 +432,27 @@
     window.addEventListener("load", () => setTimeout(execute, 300));
     // Fallback
     setTimeout(execute, 3000);
+
+    // 添加 hover 事件监听，显示音标
+    document.addEventListener("mouseover", (e) => {
+      const annotation = e.target.closest(".translens-annotation");
+      if (annotation) {
+        const phoneticPopup = annotation.querySelector(".translens-phonetic-popup");
+        if (phoneticPopup) {
+          phoneticPopup.style.display = "block";
+        }
+      }
+    });
+
+    document.addEventListener("mouseout", (e) => {
+      const annotation = e.target.closest(".translens-annotation");
+      if (annotation) {
+        const phoneticPopup = annotation.querySelector(".translens-phonetic-popup");
+        if (phoneticPopup) {
+          phoneticPopup.style.display = "none";
+        }
+      }
+    });
   }
 
   waitForPageLoad();

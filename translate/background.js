@@ -13,11 +13,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function handleTranslate({ sentence, targetWord, sourceLang, targetLang, settings }) {
   const { provider, apiKey, model, customUrl } = settings;
 
-  if (!apiKey) {
+  if (!apiKey && provider !== "custom") {
     return { error: "请先在 Settings 中配置 API Key" };
   }
 
-  const prompt = `Translate the word "${targetWord}" in the following ${sourceLang} sentence to ${targetLang}. Only give the translation, no explanation.\n\nSentence: ${sentence}`;
+  // 让 AI 返回翻译和音标（JSON 格式）
+  // 音标用简化 IPA，不带声调符号（类似有道、百度翻译）
+  const prompt = `Translate the word "${targetWord}" in the following ${sourceLang} sentence to ${targetLang}.
+Return ONLY a JSON object with this format: {"translation": "english meaning", "phonetic": "/pronunciation/"}
+
+Rules for phonetic:
+- Use simplified IPA without tone marks
+- For Chinese: /ʈʂəŋ fǔ/ (not /ʈʂəŋ˥˩ fǔ˨˩/)
+- For English: /ˈɡʌvənmənt/
+- Keep phonetic between slashes
+
+Sentence: ${sentence}`;
 
   switch (provider) {
     case "openai":
@@ -43,10 +54,10 @@ async function callOpenAI(prompt, apiKey, model) {
     body: JSON.stringify({
       model: model || "gpt-4o-mini",
       messages: [
-        { role: "system", content: "You are a precise translator." },
+        { role: "system", content: "You are a precise translator. Return JSON with translation and phonetic." },
         { role: "user", content: prompt },
       ],
-      max_tokens: 50,
+      max_tokens: 80,
       temperature: 0.3,
     }),
   });
@@ -57,9 +68,27 @@ async function callOpenAI(prompt, apiKey, model) {
   }
 
   const data = await response.json();
+  const content = data.choices[0].message.content.trim();
+
+  // 解析 AI 返回的 JSON（包含翻译和音标）
+  try {
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        targetWord: null,
+        translation: parsed.translation || content,
+        phonetic: parsed.phonetic || ""
+      };
+    }
+  } catch (e) {
+    // JSON 解析失败，返回纯翻译
+  }
+
   return {
     targetWord: null,
-    translation: data.choices[0].message.content.trim(),
+    translation: content,
+    phonetic: ""
   };
 }
 
@@ -75,9 +104,9 @@ async function callAnthropic(prompt, apiKey, model) {
     },
     body: JSON.stringify({
       model: model || "claude-sonnet-4-20250514",
-      max_tokens: 50,
+      max_tokens: 80,
       temperature: 0.3,
-      system: "You are a precise translator.",
+      system: "You are a precise translator. Return JSON with translation and phonetic.",
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -88,9 +117,27 @@ async function callAnthropic(prompt, apiKey, model) {
   }
 
   const data = await response.json();
+  const content = data.content[0].text.trim();
+
+  // 解析 AI 返回的 JSON（包含翻译和音标）
+  try {
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        targetWord: null,
+        translation: parsed.translation || content,
+        phonetic: parsed.phonetic || ""
+      };
+    }
+  } catch (e) {
+    // JSON 解析失败，返回纯翻译
+  }
+
   return {
     targetWord: null,
-    translation: data.content[0].text.trim(),
+    translation: content,
+    phonetic: ""
   };
 }
 
@@ -109,10 +156,10 @@ async function callCustom(prompt, apiKey, model, customUrl) {
     body: JSON.stringify({
       model: model || "",
       messages: [
-        { role: "system", content: "You are a precise translator." },
+        { role: "system", content: "You are a precise translator. Return JSON with translation and phonetic." },
         { role: "user", content: prompt },
       ],
-      max_tokens: 50,
+      max_tokens: 80,
       temperature: 0.3,
     }),
   });
@@ -123,8 +170,26 @@ async function callCustom(prompt, apiKey, model, customUrl) {
   }
 
   const data = await response.json();
+  const content = data.choices[0].message.content.trim();
+
+  // 解析 AI 返回的 JSON（包含翻译和音标）
+  try {
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        targetWord: null,
+        translation: parsed.translation || content,
+        phonetic: parsed.phonetic || ""
+      };
+    }
+  } catch (e) {
+    // JSON 解析失败，返回纯翻译
+  }
+
   return {
     targetWord: null,
-    translation: data.choices[0].message.content.trim(),
+    translation: content,
+    phonetic: ""
   };
 }
