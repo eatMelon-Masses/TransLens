@@ -13,7 +13,13 @@
   ],
   "host_permissions": [
     "https://api.openai.com/*",
-    "https://api.anthropic.com/*"
+    "https://api.anthropic.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -30,18 +36,10 @@
     {
       "matches": [
         "http://*/*",
-        "https://*/*",
-        "file://*/*"
+        "https://*/*"
       ],
       "js": ["content.js"],
-      "run_at": "document_idle",
-      "all_frames": true
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["settings.html"],
-      "matches": ["<all_urls>"]
+      "run_at": "document_end"
     }
   ]
 }

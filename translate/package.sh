@@ -42,7 +42,7 @@ rm -f "$ZIP_NAME"
 
 # Create zip
 echo "Creating $ZIP_NAME..."
-zip -r "$ZIP_NAME" "${FILES[@]}"
+COPYFILE_DISABLE=1 zip -r "$ZIP_NAME" "${FILES[@]}" -x "*/__MACOSX/*" "*/._*"
 
 # Verify
 echo ""
@@ -51,6 +51,11 @@ echo "Size: $(ls -lh "$ZIP_NAME" | awk '{print $5}')"
 echo ""
 echo "Contents:"
 unzip -l "$ZIP_NAME"
+
+if unzip -l "$ZIP_NAME" | grep -E '(__MACOSX|/\._|^.*\._)' >/dev/null; then
+  echo "ERROR: Package contains macOS metadata files."
+  exit 1
+fi
 
 echo ""
 echo "Ready for upload to Chrome Web Store!"

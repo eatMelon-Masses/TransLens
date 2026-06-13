@@ -20,9 +20,9 @@ Learn languages while browsing! AI-powered vocabulary annotation with SRS spaced
 - Tracks mastery progress for each word
 
 **🤖 AI-Powered Translation**
-- Choose from OpenAI GPT-4o, Anthropic Claude, or any OpenAI-compatible API
+- Choose from OpenAI GPT-4o, Anthropic Claude, or a custom OpenAI-compatible API
 - Context-aware translations based on sentence meaning
-- Custom endpoint support for local models (Ollama, llama.cpp)
+- Custom endpoint support for remote or local compatible servers
 
 **⚙️ Fully Customizable**
 - Select source and target languages
@@ -33,7 +33,7 @@ Learn languages while browsing! AI-powered vocabulary annotation with SRS spaced
 **🔒 Privacy First**
 - All data stored locally in your browser
 - No accounts, no tracking, no analytics
-- Your API key never leaves your device
+- Text snippets and API credentials are sent only to the AI provider you configure
 
 ### 🚀 How to Use
 
@@ -50,16 +50,14 @@ Learn languages while browsing! AI-powered vocabulary annotation with SRS spaced
 
 ### 🔧 Technical Notes
 
-- Requires your own API key (OpenAI, Anthropic, or compatible)
+- Requires your own API key for OpenAI/Anthropic, or a compatible custom server
 - Works with local AI servers (Ollama, llama.cpp, etc.)
 - All settings and learning data stored in chrome.storage.local
 
 ### 📖 Privacy Policy
 
-We do not collect any personal data. See full privacy policy at: [privacy.html]
+TransLens does not operate a developer server, does not use analytics, and does not sell user data. To provide translations, the extension sends the selected word and surrounding text directly to the AI provider configured by the user. See full privacy policy at: [privacy policy URL]
 
 ---
 
 **Version:** 2.0
-**Developer:** [Your Name]
-**Contact:** [your-email@example.com]

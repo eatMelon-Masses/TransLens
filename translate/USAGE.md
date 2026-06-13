@@ -24,6 +24,7 @@ Choose one of the following:
 
 - **Custom**: For local AI servers (Ollama, llama.cpp, etc.)
   - Endpoint URL: e.g., `http://localhost:11434/v1/chat/completions`
+  - Remote OpenAI-compatible endpoints are also supported; TransLens will request access to the endpoint's domain when you save or test it
 
 **Language Settings:**
 
@@ -33,7 +34,6 @@ Choose one of the following:
 **Learning Mode:**
 
 - **Vocabulary Mode**: Annotates individual words with translations
-- **Sentence Mode**: Translates entire sentences
 
 **SRS Settings:**
 
@@ -76,8 +76,8 @@ Choose one of the following:
 
 **Slow performance:**
 - Reduce the "Selection Ratio" to annotate fewer words
-- Increase the delay between API calls in Settings
+- Reduce "Max Translations / Page" in Settings
 
 ---
 
-**Need help?** Visit our support page or contact: [your-email@example.com]
+**Need help?** Use the support contact listed on the Chrome Web Store listing.

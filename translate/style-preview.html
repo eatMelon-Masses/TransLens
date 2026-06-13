@@ -41,6 +41,7 @@
       cursor: help;
       position: relative;
       display: inline-block;
+      line-height: 1.35;
     }
     .translens-annotation:hover {
       border-bottom-color: #4A90D9;
@@ -51,15 +52,17 @@
     }
     .translens-translation {
       display: inline-block;
-      font-size: 0.75em;
-      color: #6B7280;
-      color: rgba(107,114,128,0.9);
-      margin-left: 2px;
-      padding: 0 6px;
-      background: rgba(249,250,251,0.95);
-      border-radius: 4px;
-      font-weight: 500;
+      font-size: 0.95em;
+      line-height: 1.25;
+      color: #4B5563;
+      color: rgba(75,85,99,0.96);
+      margin-left: 3px;
+      padding: 1px 5px;
+      background: rgba(243,244,246,0.96);
+      border-radius: 5px;
+      font-weight: 600;
       white-space: nowrap;
+      vertical-align: baseline;
       box-shadow: 0 1px 2px rgba(0,0,0,0.05);
       transition: all 0.15s ease;
     }
@@ -68,18 +71,21 @@
     .translens-phonetic-popup {
       display: none;
       position: absolute;
-      bottom: 100%;
+      bottom: calc(100% + 5px);
       left: 50%;
       transform: translateX(-50%);
       background: #1F2937;
       color: #F9FAFB;
-      padding: 4px 8px;
+      padding: 5px 9px;
       border-radius: 6px;
-      font-size: 0.7em;
-      white-space: nowrap;
+      font-size: 0.9em;
+      line-height: 1.25;
+      white-space: normal;
+      max-width: min(280px, calc(100vw - 24px));
       z-index: 10000;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      margin-bottom: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Arial Unicode MS', 'Lucida Sans Unicode', sans-serif;
+      text-align: center;
     }
     .translens-annotation:hover .translens-phonetic-popup {
       display: block;
@@ -148,11 +154,11 @@
   <div class="sample">
     <h3>📖 音标说明</h3>
     <p style="color: #4b5563; font-size: 14px;">
-      采用<strong>简化国际音标 IPA</strong>（类似有道、百度翻译），不带声调符号：<br>
+      音标对应<strong>翻译结果</strong>的发音，采用简化国际音标 IPA：<br>
       中文示例：<span class="translens-annotation">政府
         <span class="translens-translation">government</span>
-        <span class="translens-phonetic-popup">/ʈʂəŋ fǔ/</span>
-      </span>（而非 <code style="font-size: 12px;">/ʈʂəŋ˥˩ fǔ˨˩/</code> 带声调）
+        <span class="translens-phonetic-popup">/ˈɡʌvənmənt/</span>
+      </span>
     </p>
   </div>
 </body>

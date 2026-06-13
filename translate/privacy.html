@@ -1,59 +1,70 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TransLens Privacy Policy</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 820px; margin: 40px auto; padding: 20px; line-height: 1.6; color: #374151; }
     h1 { color: #111827; }
-    h2 { color: #374151; margin-top: 24px; }
-    p { color: #4b5563; }
+    h2 { color: #1f2937; margin-top: 28px; }
+    li { margin-bottom: 6px; }
+    code { background: #f3f4f6; padding: 1px 4px; border-radius: 4px; }
   </style>
 </head>
 <body>
   <h1>TransLens Privacy Policy</h1>
-  <p><strong>Effective Date:</strong> January 2026</p>
+  <p><strong>Effective Date:</strong> June 13, 2026</p>
 
-  <h2>1. Introduction</h2>
-  <p>TransLens ("we", "our", "us") is committed to protecting your privacy. This Privacy Policy explains how we handle your data when you use the TransLens Chrome extension.</p>
+  <h2>1. Overview</h2>
+  <p>TransLens is a Chrome extension that annotates language-learning words on web pages and stores spaced-repetition learning progress locally in Chrome.</p>
 
-  <h2>2. Data Collection</h2>
-  <p><strong>We do NOT collect any personal data.</strong> All data is stored locally in your browser using Chrome's storage API:</p>
+  <h2>2. Data Handled by the Extension</h2>
+  <p>TransLens handles the following data to provide its core functionality:</p>
   <ul>
-    <li><strong>Settings:</strong> Your AI provider configuration (provider type, API key, custom URL, language preferences)</li>
-    <li><strong>SRS Data:</strong> Your learning progress (word history, review intervals, mastery status)</li>
-    <li><strong>Disabled Sites:</strong> List of websites where you've disabled the extension</li>
+    <li><strong>Web page text snippets:</strong> A sentence or short surrounding text and the selected word are used to request a translation.</li>
+    <li><strong>Settings:</strong> AI provider, model, language preferences, display preferences, disabled sites, and related configuration.</li>
+    <li><strong>API credentials:</strong> API keys entered by the user for OpenAI, Anthropic, or a custom OpenAI-compatible endpoint.</li>
+    <li><strong>Learning data:</strong> Word history, translations, phonetics, review intervals, mastery status, and timestamps.</li>
   </ul>
 
-  <h2>3. API Keys</h2>
-  <p>Your API key (for OpenAI, Anthropic, or custom providers) is stored locally in Chrome's storage. We never transmit your API key to any server other than the respective AI provider's API endpoint.</p>
+  <h2>3. Local Storage</h2>
+  <p>Settings, API credentials, disabled sites, and learning data are stored locally using <code>chrome.storage.local</code>. TransLens does not operate a server and does not collect this data on a developer-controlled server.</p>
 
-  <h2>4. Third-Party Services</h2>
-  <p>TransLens uses AI translation services (OpenAI, Anthropic, or your custom endpoint). When you translate text:</p>
+  <h2>4. Third-Party AI Services</h2>
+  <p>When TransLens translates a word, it sends the relevant text snippet and target word directly from the extension to the AI provider selected by the user:</p>
   <ul>
-    <li>The text snippet (sentence + target word) is sent directly to the AI provider's API</li>
-    <li>The AI provider processes your request according to their own privacy policy</li>
-    <li>We do not log, store, or transmit your translation requests to any third party</li>
+    <li>OpenAI, if the user chooses OpenAI</li>
+    <li>Anthropic, if the user chooses Anthropic</li>
+    <li>A custom OpenAI-compatible endpoint configured by the user, if the user chooses Custom</li>
+  </ul>
+  <p>API credentials are sent only to the selected provider endpoint as required for authentication. If the user configures a remote custom endpoint, TransLens requests permission to access that endpoint's origin. The selected provider processes requests under its own terms and privacy policy.</p>
+
+  <h2>5. Data Sharing</h2>
+  <p>TransLens does not sell user data, does not use user data for advertising, and does not share user data with data brokers or advertising networks. TransLens transfers text snippets and API credentials only as necessary to provide the user-requested translation feature through the selected AI provider.</p>
+
+  <h2>6. Analytics and Tracking</h2>
+  <p>TransLens does not include analytics SDKs, tracking cookies, advertising code, affiliate code, or behavioral tracking.</p>
+
+  <h2>7. Chrome Permissions</h2>
+  <ul>
+    <li><code>storage</code>: Saves settings, API credentials, disabled sites, and learning progress locally.</li>
+    <li><code>activeTab</code>: Reads the current tab URL after the user opens the popup, so the user can disable or enable TransLens for the current site.</li>
+    <li>Host access to <code>http://*/*</code> and <code>https://*/*</code> through the content script: Reads page text and injects inline vocabulary annotations.</li>
+    <li>Host permissions for <code>https://api.openai.com/*</code>, <code>https://api.anthropic.com/*</code>, <code>http://localhost/*</code>, and <code>http://127.0.0.1/*</code>: Sends translation requests to built-in and local AI endpoints.</li>
+    <li>Optional host permissions for custom <code>http://</code> and <code>https://</code> endpoints: Requested only when the user configures a custom remote endpoint.</li>
   </ul>
 
-  <h2>5. Permissions</h2>
-  <p>TransLens requires the following Chrome permissions:</p>
-  <ul>
-    <li><code>storage</code>: To save your settings and learning progress locally</li>
-    <li><code>activeTab</code>: To identify the current website for the disable feature</li>
-    <li><code>host_permissions</code>: To access AI provider APIs (api.openai.com, api.anthropic.com)</li>
-  </ul>
+  <h2>8. Limited Use Statement</h2>
+  <p>The use of information received from Chrome APIs adheres to the Chrome Web Store User Data Policy, including the Limited Use requirements. TransLens uses user data only to provide and improve its single purpose: contextual vocabulary translation and spaced-repetition learning in the browser.</p>
 
-  <h2>6. No Analytics or Tracking</h2>
-  <p>TransLens does not use analytics services, tracking cookies, or any form of user behavior tracking.</p>
+  <h2>9. Children's Privacy</h2>
+  <p>TransLens is a general-purpose language-learning tool and is not directed to children under 13. TransLens does not knowingly collect personal information from children.</p>
 
-  <h2>7. Children's Privacy</h2>
-  <p>TransLens is a general-purpose language learning tool and is not directed at children under 13. We do not knowingly collect personal information from children.</p>
+  <h2>10. Changes to This Policy</h2>
+  <p>This policy may be updated when TransLens changes its data handling practices. The current policy should be made available from the Chrome Web Store listing and the extension settings page.</p>
 
-  <h2>8. Changes to This Policy</h2>
-  <p>We may update this Privacy Policy from time to time. The updated version will be available in the extension's settings page.</p>
-
-  <h2>9. Contact</h2>
-  <p>For privacy-related questions, please contact: [your-email@example.com]</p>
+  <h2>11. Contact</h2>
+  <p>For privacy questions, use the developer contact email listed on the Chrome Web Store listing.</p>
 </body>
 </html>

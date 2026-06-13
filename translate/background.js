@@ -17,16 +17,17 @@ async function handleTranslate({ sentence, targetWord, sourceLang, targetLang, s
     return { error: "请先在 Settings 中配置 API Key" };
   }
 
-  // 让 AI 返回翻译和音标（JSON 格式）
-  // 音标用简化 IPA，不带声调符号（类似有道、百度翻译）
+  // 让 AI 返回翻译和翻译结果的发音（JSON 格式）
+  // phonetic 始终对应 translation，而不是原文 targetWord，避免中文源词被返回拼音。
   const prompt = `Translate the word "${targetWord}" in the following ${sourceLang} sentence to ${targetLang}.
-Return ONLY a JSON object with this format: {"translation": "english meaning", "phonetic": "/pronunciation/"}
+Return ONLY a JSON object with this format: {"translation": "translated meaning", "phonetic": "/pronunciation of translated meaning/"}
 
 Rules for phonetic:
-- Use simplified IPA without tone marks
-- For Chinese: /ʈʂəŋ fǔ/ (not /ʈʂəŋ˥˩ fǔ˨˩/)
-- For English: /ˈɡʌvənmənt/
-- Keep phonetic between slashes
+- Phonetic MUST be for the translation in ${targetLang}, not for the original ${sourceLang} word.
+- If ${targetLang} is English, use English IPA, for example government -> /ˈɡʌvənmənt/.
+- If the translation is a short phrase, provide readable IPA for the phrase.
+- Do not return pinyin unless ${targetLang} is Chinese.
+- Keep phonetic between slashes. If unsure, use an empty string.
 
 Sentence: ${sentence}`;
 

@@ -10,6 +10,8 @@
   let config = {}; // 从 chrome.storage.local 加载
   let srsData = {}; // SRS 词库
   let stats = { newToday: 0, today: getToday() }; // 今日统计
+  let executeRunning = false;
+  let executeTimer = null;
 
   function getToday() {
     return new Date().toDateString();
@@ -35,10 +37,10 @@
   // 存储 source pattern 字符串，getLangPattern 每次创建新 RegExp 实例
 
   const LANG_PATTERNS = {
-    "zh-CN": { name: "Chinese Simplified", source: "[\\u4e00-\\u9fff]{1,6}" },
-    "zh-TW": { name: "Chinese Traditional", source: "[\\u4e00-\\u9fff\\u3400-\\u4dbf]{1,6}" },
-    ja: { name: "Japanese", source: "[\\u3040-\\u309f\\u30a0-\\u30ff\\u4e00-\\u9fff\\u3400-\\u4dbf]{1,6}" },
-    ko: { name: "Korean", source: "[\\uac00-\\ud7af\\u1100-\\u11ff]{1,5}" },
+    "zh-CN": { name: "Chinese Simplified", charClass: "[\\u4e00-\\u9fff]", defaultMaxLen: 6 },
+    "zh-TW": { name: "Chinese Traditional", charClass: "[\\u4e00-\\u9fff\\u3400-\\u4dbf]", defaultMaxLen: 6 },
+    ja: { name: "Japanese", charClass: "[\\u3040-\\u309f\\u30a0-\\u30ff\\u4e00-\\u9fff\\u3400-\\u4dbf]", defaultMaxLen: 6 },
+    ko: { name: "Korean", charClass: "[\\uac00-\\ud7af\\u1100-\\u11ff]", defaultMaxLen: 5 },
     fr: { name: "French", source: "[a-zA-Z\\u00c0-\\u024f]{2,}" },
     de: { name: "German", source: "[a-zA-Z\\u00c0-\\u024f\\u00df\\u00e4\\u00f6\\u00fc\\u00c4\\u00d6\\u00dc]{2,}" },
     es: { name: "Spanish", source: "[a-zA-Z\\u00c0-\\u024f\\u00f1\\u00d1]{2,}" },
@@ -46,12 +48,21 @@
     ar: { name: "Arabic", source: "[\\u0600-\\u06ff]{2,}" },
   };
 
+  function getMaxPhraseLen(entry) {
+    const minLen = Number(config.minWordLen || 1);
+    const defaultMax = entry?.defaultMaxLen || 6;
+    return Math.max(minLen, clamp(Number(config.maxPhraseLen || defaultMax), 1, 20));
+  }
+
   function getLangPattern() {
     const lang = config.sourceLang || "zh-CN";
     if (lang === "custom") {
       return new RegExp(config.customRegex || "[\\u4e00-\\u9fff]{1,6}", "g");
     }
     const entry = LANG_PATTERNS[lang] || LANG_PATTERNS["zh-CN"];
+    if (entry.charClass) {
+      return new RegExp(`${entry.charClass}{1,${getMaxPhraseLen(entry)}}`, "g");
+    }
     return new RegExp(entry.source, "g");
   }
 
@@ -75,8 +86,8 @@
           const text = node.textContent.trim();
           if (text.length < 2) return NodeFilter.FILTER_REJECT;
 
-          // 跳过已处理节点
-          if (node.parentElement?.getAttribute(MARKER)) {
+          // 跳过已处理节点及 TransLens 自己插入的标注内容。
+          if (node.parentElement?.closest(`[${MARKER}], .translens-annotation`)) {
             return NodeFilter.FILTER_REJECT;
           }
 
@@ -123,6 +134,15 @@
 
   function getWordState(word) {
     return srsData[word] || null;
+  }
+
+  function getCachedTranslation(word) {
+    const entry = getWordState(word);
+    if (!entry?.translation) return null;
+    return {
+      translation: entry.translation,
+      phonetic: entry.phonetic || "",
+    };
   }
 
   function createWordEntry(word) {
@@ -191,6 +211,7 @@
   function selectWordsForTranslation(textItems) {
     const ratio = (config.selectRatio || 40) / 100;
     const maxNew = config.maxNewWords || 50;
+    const maxPerPage = clamp(Number(config.maxTranslationsPerPage || 30), 1, 100);
     const candidates = [];
 
     for (const item of textItems) {
@@ -211,7 +232,7 @@
     });
 
     // 按选择比例选取
-    const count = Math.max(1, Math.floor(candidates.length * ratio));
+    const count = Math.min(maxPerPage, Math.max(1, Math.floor(candidates.length * ratio)));
     return candidates.slice(0, count);
   }
 
@@ -256,21 +277,43 @@
 
   // ─── DOM Annotation ────────────────────────────────────
 
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function getTranslationConcurrency() {
+    return clamp(Number(config.translationConcurrency || 3), 1, 5);
+  }
+
+  function getAnnotationScale() {
+    return clamp(Number(config.annotationScale || 110), 90, 130) / 100;
+  }
+
+  function escapeHTML(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   function annotateWordInText(textData, targetWord, translation, phonetic = "") {
     const originalText = textData.text;
     if (!originalText.includes(targetWord)) return false;
+    if (textData.parent.closest(`[${MARKER}], .translens-annotation`)) return false;
+
+    const scale = getAnnotationScale();
+    const translationFontSize = `${(0.86 * scale).toFixed(2)}em`;
+    const phoneticFontSize = `${(0.82 * scale).toFixed(2)}em`;
+    const safeWord = escapeHTML(targetWord);
+    const safeTranslation = escapeHTML(translation);
+    const safePhonetic = escapeHTML(phonetic);
 
     // 创建精美的标注样式（参考 Apple 词典 + 微信读书）
     // 底部虚线 + 行内翻译，Hover 显示音标 tooltip
-    const phoneticHTML = phonetic ? `<div class="translens-phonetic" style="
-      font-size: 0.7em;
-      color: #9CA3AF;
-      color: rgba(156,163,175,0.9);
-      margin-bottom: 2px;
-      font-family: 'Arial Unicode MS', 'Lucida Sans Unicode', sans-serif;
-    ">${phonetic}</div>` : '';
-
     const annotationHTML = `<span class="translens-annotation"
+      ${MARKER}="true"
       style="
         border-bottom: 2px dotted #4A90D9;
         border-bottom-color: rgba(74,144,217,0.6);
@@ -279,39 +322,46 @@
         cursor: help;
         position: relative;
         display: inline-block;
+        line-height: 1.35;
       "
-      data-translation="${translation}"
-      data-phonetic="${phonetic}">
-      ${targetWord}
+      data-translation="${safeTranslation}"
+      data-phonetic="${safePhonetic}">
+      ${safeWord}
       <span class="translens-translation"
         style="
           display: inline-block;
-          font-size: 0.75em;
-          color: #6B7280;
-          color: rgba(107,114,128,0.9);
-          margin-left: 2px;
-          padding: 0 4px;
-          background: rgba(249,250,251,0.9);
-          border-radius: 4px;
-          font-weight: 500;
+          font-size: ${translationFontSize};
+          line-height: 1.25;
+          color: #4B5563;
+          color: rgba(75,85,99,0.96);
+          margin-left: 3px;
+          padding: 1px 5px;
+          background: rgba(243,244,246,0.96);
+          border-radius: 5px;
+          font-weight: 600;
           white-space: nowrap;
-        ">${translation}</span>
+          vertical-align: baseline;
+        ">${safeTranslation}</span>
       ${phonetic ? `<span class="translens-phonetic-popup"
         style="
           display: none;
           position: absolute;
-          bottom: 100%;
+          bottom: calc(100% + 5px);
           left: 50%;
           transform: translateX(-50%);
           background: #1F2937;
           color: #F9FAFB;
-          padding: 4px 8px;
+          padding: 5px 9px;
           border-radius: 6px;
-          font-size: 0.7em;
-          white-space: nowrap;
+          font-size: ${phoneticFontSize};
+          line-height: 1.25;
+          white-space: normal;
+          max-width: min(280px, calc(100vw - 24px));
           z-index: 10000;
           box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        ">${phonetic}</span>` : ''}
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Arial Unicode MS', 'Lucida Sans Unicode', sans-serif;
+          text-align: center;
+        ">${safePhonetic}</span>` : ''}
     </span>`;
 
     const currentHTML = textData.parent.innerHTML;
@@ -345,93 +395,143 @@
 
   // ─── Main Execution ────────────────────────────────────
 
-  async function execute() {
-    await loadConfig();
-    await loadSRS();
-
-    // 检查当前网站是否在禁用列表中
-    const currentHost = window.location.hostname;
-    const disabledSites = config.disabledSites || [];
-    if (disabledSites.includes(currentHost)) {
-      console.log(`[TransLens] 当前网站 ${currentHost} 已被禁用，跳过翻译`);
-      return;
-    }
-
-    const provider = config.provider || "openai";
-    const providerConfig = config.providers?.[provider] || {};
-    const apiKey = providerConfig.apiKey || "";
-
-    if (provider !== "custom" && !apiKey) {
-      console.log("[TransLens] No API Key configured for " + provider + ", skipping.");
-      return;
-    }
-
-    console.log("[TransLens] Starting language learning scan...");
-    console.log(
-      `[TransLens] Config: ${config.sourceLang} → ${config.targetLang}, mode: ${config.mode || "vocabulary"}`
-    );
-
-    // 提取中文文本
-    const textItems = extractChineseTexts();
-    console.log(`[TransLens] Found ${textItems.length} text nodes with target language content`);
-
-    if (textItems.length === 0) return;
-
-    // 选择需要翻译的词
-    const selections = selectWordsForTranslation(textItems);
-    console.log(`[TransLens] Selected ${selections.length} words for translation`);
-
-    if (selections.length === 0) return;
-
-    // 去重（同一个词不重复翻译）
-    const seen = new Set();
-    const unique = selections.filter((s) => {
-      if (seen.has(s.word)) return false;
-      seen.add(s.word);
-      return true;
+  async function runWithConcurrency(items, limit, worker) {
+    let index = 0;
+    const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (index < items.length) {
+        const item = items[index++];
+        await worker(item);
+      }
     });
 
-    // 逐词翻译并标注
-    let annotated = 0;
-    for (const { item, word, state } of unique) {
-      if (state === "new") stats.newToday++;
-
-      const result = await translateWord(item.text, word);
-      if (result && result.translation) {
-        // 更新 SRS 翻译缓存
-        let entry = getWordState(word);
-        if (!entry) entry = createWordEntry(word);
-        entry.translation = result.translation;
-        entry.phonetic = result.phonetic || "";
-        entry.contextCount = (entry.contextCount || 0) + 1;
-        saveSRS();
-
-        const success = annotateWordInText(item, word, result.translation, result.phonetic);
-        if (success) annotated++;
-      }
-
-      // 限速：500ms 间隔
-      await sleep(500);
-    }
-
-    console.log(`[TransLens] Done. Annotated ${annotated} words.`);
+    await Promise.all(workers);
   }
 
-  function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  async function execute() {
+    if (executeRunning) return;
+    executeRunning = true;
+
+    try {
+      await loadConfig();
+      await loadSRS();
+
+      // 检查当前网站是否在禁用列表中
+      const currentHost = window.location.hostname;
+      const disabledSites = config.disabledSites || [];
+      if (disabledSites.includes(currentHost)) {
+        console.log(`[TransLens] 当前网站 ${currentHost} 已被禁用，跳过翻译`);
+        return;
+      }
+
+      const provider = config.provider || "openai";
+      const providerConfig = config.providers?.[provider] || {};
+      const apiKey = providerConfig.apiKey || "";
+
+      if (provider !== "custom" && !apiKey) {
+        console.log("[TransLens] No API Key configured for " + provider + ", skipping.");
+        return;
+      }
+
+      console.log("[TransLens] Starting language learning scan...");
+      console.log(
+        `[TransLens] Config: ${config.sourceLang} → ${config.targetLang}, mode: ${config.mode || "vocabulary"}`
+      );
+
+      // 提取中文文本
+      const textItems = extractChineseTexts();
+      console.log(`[TransLens] Found ${textItems.length} text nodes with target language content`);
+
+      if (textItems.length === 0) return;
+
+      // 选择需要翻译的词
+      const selections = selectWordsForTranslation(textItems);
+      console.log(`[TransLens] Selected ${selections.length} words for translation`);
+
+      if (selections.length === 0) return;
+
+      // 去重（同一个词不重复翻译）
+      const seen = new Set();
+      const unique = selections.filter((s) => {
+        if (seen.has(s.word)) return false;
+        seen.add(s.word);
+        return true;
+      });
+
+      // 已缓存的词立即标注，缺失的词再走 API。
+      let annotated = 0;
+      let srsDirty = false;
+      const pendingTranslations = [];
+
+      for (const { item, word, state } of unique) {
+        if (state === "new") stats.newToday++;
+
+        const cached = getCachedTranslation(word);
+        if (cached) {
+          const entry = getWordState(word);
+          entry.lastSeen = Date.now();
+          entry.contextCount = (entry.contextCount || 0) + 1;
+          srsDirty = true;
+
+          const success = annotateWordInText(item, word, cached.translation, cached.phonetic);
+          if (success) annotated++;
+          continue;
+        }
+
+        pendingTranslations.push({ item, word });
+      }
+
+      if (pendingTranslations.length > 0) {
+        const concurrency = getTranslationConcurrency();
+        console.log(`[TransLens] Translating ${pendingTranslations.length} uncached words with concurrency ${concurrency}`);
+
+        await runWithConcurrency(pendingTranslations, concurrency, async ({ item, word }) => {
+          const result = await translateWord(item.text, word);
+
+          if (result && result.translation) {
+            // 更新 SRS 翻译缓存
+            let entry = getWordState(word);
+            if (!entry) entry = createWordEntry(word);
+            entry.translation = result.translation;
+            entry.phonetic = result.phonetic || "";
+            entry.contextCount = (entry.contextCount || 0) + 1;
+            entry.lastSeen = Date.now();
+            srsDirty = true;
+
+            const success = annotateWordInText(item, word, result.translation, result.phonetic);
+            if (success) annotated++;
+          }
+        });
+      }
+
+      if (srsDirty) {
+        await saveSRS();
+      }
+
+      console.log(`[TransLens] Done. Annotated ${annotated} words.`);
+    } finally {
+      executeRunning = false;
+    }
   }
 
   // ─── Page Load Trigger ────────────────────────────────
 
+  function scheduleExecute(delay) {
+    if (executeRunning || executeTimer) return;
+    executeTimer = setTimeout(() => {
+      executeTimer = null;
+      execute().catch((err) => console.error("[TransLens] Scan failed:", err));
+    }, delay);
+  }
+
   function waitForPageLoad() {
-    if (document.readyState === "complete") {
-      setTimeout(execute, 500);
-    } else if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", () => setTimeout(execute, 500));
+    if (document.readyState === "complete" || document.readyState === "interactive") {
+      scheduleExecute(150);
+    } else {
+      document.addEventListener("DOMContentLoaded", () => scheduleExecute(150), { once: true });
     }
-    window.addEventListener("load", () => setTimeout(execute, 300));
+    window.addEventListener("load", () => scheduleExecute(100), { once: true });
     // Fallback
-    setTimeout(execute, 3000);
+    setTimeout(() => scheduleExecute(0), 2500);
 
     // 添加 hover 事件监听，显示音标
     document.addEventListener("mouseover", (e) => {

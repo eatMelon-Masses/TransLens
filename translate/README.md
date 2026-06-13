@@ -11,14 +11,14 @@
 
 - 🌐 **Multi-Language Support**: Chinese, Japanese, Korean, French, German, Spanish, Russian, Arabic
 - 🧠 **SRS Algorithm**: Smart review scheduling (SM-2 based)
-- 🤖 **AI Translation**: OpenAI / Anthropic / Custom endpoints
-- 🔒 **Privacy First**: All data stored locally
+- 🤖 **AI Translation**: OpenAI / Anthropic / custom OpenAI-compatible endpoints
+- 🔒 **Privacy First**: Learning data stored locally; translation snippets sent only to the provider you configure
 - ⚡ **Smart Annotation**: Learn words in their natural context
 
 ## Installation
 
 ### From Chrome Web Store (Recommended)
-1. Visit the [Chrome Web Store](link-to-store)
+1. Visit the TransLens Chrome Web Store listing after it is published
 2. Click "Add to Chrome"
 
 ### Manual Installation
@@ -31,7 +31,7 @@
 
 1. **Configure API Key**
    - Click extension icon → Settings
-   - Select your AI provider (OpenAI/Anthropic/Custom)
+   - Select your AI provider (OpenAI/Anthropic/custom)
    - Enter your API key
 
 2. **Set Languages**
@@ -72,7 +72,7 @@ This creates `TransLens-2.0.zip` ready for upload.
 - **Manifest V3** - Latest Chrome extension format
 - **Vanilla JavaScript** - No framework dependencies
 - **SRS (SM-2)** - Spaced repetition algorithm
-- **AI Providers** - OpenAI, Anthropic, OpenAI-compatible APIs
+- **AI Providers** - OpenAI, Anthropic, custom OpenAI-compatible APIs
 
 ## Permissions
 
@@ -80,13 +80,13 @@ This creates `TransLens-2.0.zip` ready for upload.
 |------------|---------|
 | `storage` | Save settings and learning progress locally |
 | `activeTab` | Identify current website for disable feature |
-| `host_permissions` | Access AI provider APIs |
+| `host_permissions` | Access AI provider APIs and local endpoints |
 
 ## Privacy
 
-- No data collection
+- No developer-operated data collection server
 - No analytics or tracking
-- API keys stored locally only
+- API keys are stored locally and sent only to the configured AI provider endpoint when making translation requests
 - See [PRIVACY.md](PRIVACY.md) for details
 
 ## Documentation
@@ -107,5 +107,3 @@ MIT License - See LICENSE file for details
 ---
 
 **Version**: 2.0  
-**Author**: [Your Name]  
-**Contact**: [your-email@example.com]

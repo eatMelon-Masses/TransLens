@@ -18,6 +18,7 @@
         <a href="#provider" class="nav-item active" data-section="provider">AI Provider</a>
         <a href="#language" class="nav-item" data-section="language">Language</a>
         <a href="#learning" class="nav-item" data-section="learning">Learning Mode</a>
+        <a href="#display" class="nav-item" data-section="display">Display</a>
         <a href="#srs" class="nav-item" data-section="srs">SRS Settings</a>
         <a href="#stats" class="nav-item" data-section="stats">Statistics</a>
         <a href="#disabled" class="nav-item" data-section="disabled">Disabled Sites</a>
@@ -79,8 +80,8 @@
 
         <div class="form-group hidden" id="customUrlGroup">
           <label for="customUrl">Endpoint URL</label>
-          <input type="text" id="customUrl" placeholder="https://api.openai.com/v1/chat/completions">
-          <span class="hint">必须是 OpenAI兼容的 API 格式</span>
+          <input type="text" id="customUrl" placeholder="http://localhost:11434/v1/chat/completions">
+          <span class="hint">支持 OpenAI-compatible API；远程 endpoint 会在保存或测试时请求域名访问权限</span>
         </div>
 
         <div class="form-group">
@@ -136,9 +137,8 @@
           <label>Mode</label>
           <div class="radio-group">
             <label><input type="radio" name="mode" value="vocabulary" checked> Vocabulary (词汇标注)</label>
-            <label><input type="radio" name="mode" value="sentence"> Sentence (整句翻译)</label>
           </div>
-          <span class="hint">Vocabulary: 标注关键词汇 | Sentence: 翻译整句并替换</span>
+          <span class="hint">在网页中标注关键词汇并显示翻译</span>
         </div>
 
         <div class="form-group">
@@ -150,6 +150,30 @@
         <div class="form-group">
           <label for="minWordLen">Min Word Length</label>
           <input type="number" id="minWordLen" min="1" max="10" value="2">
+        </div>
+
+        <div class="form-group">
+          <label for="maxPhraseLen">Max Phrase Length</label>
+          <input type="number" id="maxPhraseLen" min="1" max="20" value="6">
+          <span class="hint">控制中文、日文、韩文连续片段的最长字符数</span>
+        </div>
+
+        <div class="form-group">
+          <label for="maxTranslationsPerPage">Max Translations / Page</label>
+          <input type="number" id="maxTranslationsPerPage" min="1" max="100" value="30">
+          <span class="hint">限制每个页面最多显示多少个标注</span>
+        </div>
+      </section>
+
+      <!-- Display -->
+      <section id="display" class="section">
+        <h2>Display</h2>
+
+        <div class="form-group">
+          <label for="annotationScale">Annotation Size</label>
+          <input type="range" id="annotationScale" min="90" max="130" step="5" value="110">
+          <span id="annotationScaleValue" class="range-value">110%</span>
+          <span class="hint">控制网页中行内翻译和音标的显示大小</span>
         </div>
       </section>
 

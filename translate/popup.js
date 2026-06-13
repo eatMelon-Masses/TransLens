@@ -14,12 +14,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   const isDisabled = disabledSites.includes(currentHost);
 
   // Provider
+  const provider = s.provider || "openai";
+  const providerConfig = s.providers?.[provider] || {};
   const providerNames = { openai: "OpenAI", anthropic: "Anthropic", custom: "Custom" };
-  document.getElementById("providerDisplay").textContent = providerNames[s.provider] || "—";
+  document.getElementById("providerDisplay").textContent = providerNames[provider] || "—";
 
-  // API Key
+  // API Key / Custom endpoint
   const keyEl = document.getElementById("keyDisplay");
-  if (s.apiKey) {
+  const hasProviderConfig = provider === "custom"
+    ? Boolean(providerConfig.customUrl || providerConfig.apiKey)
+    : Boolean(providerConfig.apiKey || s.apiKey);
+
+  if (hasProviderConfig) {
     keyEl.textContent = "Configured";
     keyEl.className = "status-value ok";
   } else {

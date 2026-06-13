@@ -7,6 +7,33 @@ function bindRadio(name, value) {
   if (input) input.checked = true;
 }
 
+function getOriginPattern(url) {
+  try {
+    const endpoint = new URL(url);
+    if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:") return null;
+    return `${endpoint.protocol}//${endpoint.host}/*`;
+  } catch (err) {
+    return null;
+  }
+}
+
+async function ensureCustomEndpointPermission(url) {
+  const origin = getOriginPattern(url);
+  if (!origin) {
+    throw new Error("Please enter a valid http:// or https:// endpoint URL.");
+  }
+
+  const hasPermission = await chrome.permissions.contains({ origins: [origin] });
+  if (hasPermission) return true;
+
+  const granted = await chrome.permissions.request({ origins: [origin] });
+  if (!granted) {
+    throw new Error("Permission is required to connect to this custom endpoint.");
+  }
+
+  return true;
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   const defaults = {
     provider: "openai",
@@ -19,6 +46,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     mode: "vocabulary",
     selectRatio: 40,
     minWordLen: 2,
+    maxPhraseLen: 6,
+    maxTranslationsPerPage: 30,
+    annotationScale: 110,
     intervalMultiplier: 2.5,
     maxNewWords: 50,
     masteryThreshold: 6,
@@ -50,6 +80,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       mode: s.mode || defaults.mode,
       selectRatio: s.selectRatio || defaults.selectRatio,
       minWordLen: s.minWordLen || defaults.minWordLen,
+      maxPhraseLen: s.maxPhraseLen || defaults.maxPhraseLen,
+      maxTranslationsPerPage: s.maxTranslationsPerPage || defaults.maxTranslationsPerPage,
+      annotationScale: s.annotationScale || defaults.annotationScale,
       intervalMultiplier: s.intervalMultiplier || defaults.intervalMultiplier,
       maxNewWords: s.maxNewWords || defaults.maxNewWords,
       masteryThreshold: s.masteryThreshold || defaults.masteryThreshold,
@@ -76,6 +109,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("selectRatio").value = settings.selectRatio || defaults.selectRatio;
   $("ratioValue").textContent = (settings.selectRatio || defaults.selectRatio) + "%";
   $("minWordLen").value = settings.minWordLen || defaults.minWordLen;
+  $("maxPhraseLen").value = settings.maxPhraseLen || defaults.maxPhraseLen;
+  $("maxTranslationsPerPage").value = settings.maxTranslationsPerPage || defaults.maxTranslationsPerPage;
+  $("annotationScale").value = settings.annotationScale || defaults.annotationScale;
+  $("annotationScaleValue").textContent = (settings.annotationScale || defaults.annotationScale) + "%";
   $("intervalMultiplier").value = settings.intervalMultiplier || defaults.intervalMultiplier;
   $("maxNewWords").value = settings.maxNewWords || defaults.maxNewWords;
   $("masteryThreshold").value = settings.masteryThreshold || defaults.masteryThreshold;
@@ -149,6 +186,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     $("ratioValue").textContent = e.target.value + "%";
   });
 
+  $("annotationScale").addEventListener("input", (e) => {
+    $("annotationScaleValue").textContent = e.target.value + "%";
+  });
+
   // Sidebar navigation
   document.querySelectorAll(".nav-item").forEach((el) => {
     el.addEventListener("click", (e) => {
@@ -180,6 +221,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     saveProviderForm(provider);
 
+    try {
+      const customUrl = settings.providers.custom?.customUrl || "";
+      if (provider === "custom" && customUrl) {
+        await ensureCustomEndpointPermission(customUrl);
+      }
+    } catch (err) {
+      $("saveBtn").textContent = err.message;
+      setTimeout(() => ($("saveBtn").textContent = "Save Settings"), 2500);
+      return;
+    }
+
     const newSettings = {
       provider,
       providers: settings.providers,
@@ -189,6 +241,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       mode,
       selectRatio: parseInt($("selectRatio").value),
       minWordLen: parseInt($("minWordLen").value),
+      maxPhraseLen: parseInt($("maxPhraseLen").value),
+      maxTranslationsPerPage: parseInt($("maxTranslationsPerPage").value),
+      annotationScale: parseInt($("annotationScale").value),
       intervalMultiplier: parseFloat($("intervalMultiplier").value),
       maxNewWords: parseInt($("maxNewWords").value),
       masteryThreshold: parseInt($("masteryThreshold").value),
@@ -220,6 +275,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       result.textContent = "Please enter an API Key";
       result.className = "test-result error";
       return;
+    }
+
+    if (provider === "custom" && customUrl) {
+      try {
+        await ensureCustomEndpointPermission(customUrl);
+      } catch (err) {
+        result.textContent = err.message;
+        result.className = "test-result error";
+        return;
+      }
     }
 
     try {
