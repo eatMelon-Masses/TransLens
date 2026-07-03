@@ -17,11 +17,14 @@ function normalizeTextField(value) {
 function isUsableTranslation(value) {
   const text = normalizeTextField(value);
   if (!text) return false;
-  if (text.length > 160) return false;
+  if (text.length > 80) return false;
   if ((text.startsWith("{") && text.endsWith("}")) || (text.startsWith("[") && text.endsWith("]"))) {
     return false;
   }
   if (/"translation"\s*:/.test(text) || /"phonetic"\s*:/.test(text)) {
+    return false;
+  }
+  if (/[.!?。！？]/.test(text)) {
     return false;
   }
   return true;
@@ -100,59 +103,101 @@ function readJsonStringField(text, fieldName) {
   }
 }
 
-function parseTranslationContent(content) {
-  const text = String(content || "").trim();
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  const jsonText = jsonMatch ? jsonMatch[0] : "";
+// ─── 健壮 JSON 解析管道 ─────────────────────────────────────
+// 参考 LangChain parse_partial_json + Vercel AI SDK extractJsonMiddleware
+// 四层防御：stripThinking → stripMarkdown → bracketDepth → tryParse/fallback
 
-  if (jsonText) {
-    try {
-      const parsed = JSON.parse(jsonText);
-      const translation = normalizeTextField(parsed.translation);
-      if (!isUsableTranslation(translation)) {
-        return { error: "模型返回的 JSON 缺少有效 translation 字段" };
-      }
-      return {
-        targetWord: null,
-        translation,
-        phonetic: normalizeTextField(parsed.phonetic)
-      };
-    } catch (e) {
-      try {
-        const parsed = JSON.parse(escapeControlCharsInJsonStrings(jsonText));
-        const translation = normalizeTextField(parsed.translation);
-        if (!isUsableTranslation(translation)) {
-          return { error: "模型返回的 JSON 缺少有效 translation 字段" };
-        }
-        return {
-          targetWord: null,
-          translation,
-          phonetic: normalizeTextField(parsed.phonetic)
-        };
-      } catch (err) {
-        const translation = normalizeTextField(readJsonStringField(jsonText, "translation"));
-        const phonetic = normalizeTextField(readJsonStringField(jsonText, "phonetic"));
-        if (isUsableTranslation(translation)) {
-          return {
-            targetWord: null,
-            translation,
-            phonetic
-          };
-        }
-        return { error: "模型返回的 JSON 无法解析出有效翻译" };
-      }
+function stripThinkingBlocks(text) {
+  // MiniMax / DeepSeek 等推理模型会把思考过程嵌在 content 里
+  // 格式有 <think>...</think> 和  ...，均需去除
+  return text.replace(/<think>[\s\S]*?<\/think(?:ing)?>/gi, "").trim();
+}
+
+function extractJsonFromMarkdown(text) {
+  // 有些模型把 JSON 包在 ```json ... ``` 里，提取围栏内容
+  const fenceMatch = text.match(/```(?:json|JSON)?\s*\n?([\s\S]*?)\n?\s*```/);
+  return fenceMatch ? fenceMatch[1].trim() : text;
+}
+
+function extractJsonObject(text) {
+  // 括号深度计数器，正确处理字符串内的 { } 嵌套
+  // 替代有缺陷的贪婪正则 /\{[\s\S]*\}/
+  const start = text.indexOf("{");
+  if (start === -1) return "";
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < text.length; i++) {
+    const char = text[i];
+    if (escaped) { escaped = false; continue; }
+    if (char === "\\" && inString) { escaped = true; continue; }
+    if (char === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (char === "{") depth++;
+    else if (char === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
     }
   }
+  // fallback：取到最后一个 }（处理截断 JSON）
+  const end = text.lastIndexOf("}");
+  return end > start ? text.slice(start, end + 1) : "";
+}
 
-  if (!isUsableTranslation(text)) {
-    return { error: "模型返回内容不是可展示的短翻译" };
+function tryParseJson(jsonText) {
+  // 三层解析：直接 parse → 修控制字符 → 正则字段提取兜底
+  // 每层都校验 translation 字段有效性
+  const buildResult = (parsed) => {
+    const translation = normalizeTextField(parsed.translation);
+    if (!isUsableTranslation(translation)) return null;
+    return {
+      targetWord: null,
+      translation,
+      phonetic: normalizeTextField(parsed.phonetic)
+    };
+  };
+
+  // Layer 1：直接 parse
+  try {
+    const result = buildResult(JSON.parse(jsonText));
+    if (result) return result;
+  } catch (_) {}
+
+  // Layer 2：转义字符串内的控制字符（未转义换行符是最常见的 LLM JSON 错误）
+  try {
+    const result = buildResult(JSON.parse(escapeControlCharsInJsonStrings(jsonText)));
+    if (result) return result;
+  } catch (_) {}
+
+  // Layer 3：正则提取字段（处理 JSON.parse 完全失败的情况）
+  const translation = normalizeTextField(readJsonStringField(jsonText, "translation"));
+  const phonetic = normalizeTextField(readJsonStringField(jsonText, "phonetic"));
+  if (isUsableTranslation(translation)) {
+    return { targetWord: null, translation, phonetic };
+  }
+  return null;
+}
+
+function parseTranslationContent(content) {
+  const raw = String(content || "");
+
+  // 管道：去 thinking 块 → 去 markdown 围栏 → 括号计数器提取 JSON
+  const cleaned = extractJsonFromMarkdown(stripThinkingBlocks(raw));
+  const jsonText = extractJsonObject(cleaned);
+
+  if (jsonText) {
+    const result = tryParseJson(jsonText);
+    if (result) return result;
   }
 
-  return {
-    targetWord: null,
-    translation: text,
-    phonetic: ""
-  };
+  // fallback：清理后的文本本身作为翻译（纯文本响应，无 JSON）
+  if (isUsableTranslation(cleaned)) {
+    return { targetWord: null, translation: cleaned, phonetic: "" };
+  }
+
+  return { error: "模型返回内容无法解析为有效翻译" };
 }
 
 async function handleTranslate({ sentence, targetWord, sourceLang, targetLang, settings }) {
@@ -166,6 +211,9 @@ async function handleTranslate({ sentence, targetWord, sourceLang, targetLang, s
   // phonetic 始终对应 translation，而不是原文 targetWord，避免中文源词被返回拼音。
   const prompt = `Translate the word "${targetWord}" in the following ${sourceLang} sentence to ${targetLang}.
 Return ONLY a JSON object with this format: {"translation": "translated meaning", "phonetic": "/pronunciation of translated meaning/"}
+
+Translate ONLY the target word or phrase, not the full sentence.
+The translation field MUST be a concise word or short phrase, no more than 6 words.
 
 Rules for phonetic:
 - Phonetic MUST be for the translation in ${targetLang}, not for the original ${sourceLang} word.
@@ -186,7 +234,9 @@ Sentence: ${sentence}`;
       const compactPrompt =
         `Translate "${targetWord}" (${sourceLang}) to ${targetLang} in this sentence:\n` +
         `"${sentence}"\n` +
-        `Return JSON only: {"translation": "...", "phonetic": "/IPA of translation/"}`;
+        `Return JSON only: {"translation": "...", "phonetic": "/IPA of translation/"}\n` +
+        `Translate only the target word or phrase. Do not translate the full sentence. ` +
+        `The translation must be concise, no more than 6 words.`;
       return callCustom(compactPrompt, apiKey, model, customUrl);
     }
     default:
@@ -286,8 +336,10 @@ async function callCustom(prompt, apiKey, model, customUrl) {
   const data = await response.json();
 
   // thinking 模型（如 deepseek-v4-flash）可能将推理过程放在 reasoning_content，content 为空
+  // 或把 <think> 块嵌入 content 里（MiniMax-M2.5）——先去除再判空
   const message = data.choices?.[0]?.message;
-  const content = (message?.content || "").trim();
+  const rawContent = (message?.content || "").trim();
+  const content = stripThinkingBlocks(rawContent);
 
   if (!content) {
     throw new Error(
