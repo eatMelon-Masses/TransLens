@@ -23,11 +23,15 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Build snapshot zip
+        id: build
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           cd translate
           bash package.sh
+          TIMESTAMP=$(date +%Y%m%d%H%M)
+          mv TransLens-${VERSION}.zip TransLens-snapshot-${TIMESTAMP}.zip
+          echo "zip_name=TransLens-snapshot-${TIMESTAMP}.zip" >> $GITHUB_OUTPUT
 
       - name: Upload snapshot release
         uses: softprops/action-gh-release@v2
@@ -38,4 +42,4 @@ jobs:
             自动构建的最新开发版，每次 push 到 main 自动更新。
             正式版请查看 [Releases](https://github.com/${{ github.repository }}/releases)。
           prerelease: true
-          files: translate/TransLens-*.zip
+          files: translate/${{ steps.build.outputs.zip_name }}
