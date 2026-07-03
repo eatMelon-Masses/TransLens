@@ -18,7 +18,7 @@
 |------|------|------|
 | **DeepSeek** | `https://api.deepseek.com/v1/chat/completions` | 性价比高，中文能力强 |
 | **豆包（Doubao）** | `https://ark.cn-beijing.volces.com/api/v3/chat/completions` | 字节火山引擎，中文场景表现优秀 |
-| **MiniMax** | 按中转站地址填写 | 支持思考模型，已兼容 `` 解析 |
+| **MiniMax** | `https://api.minimaxi.com/v1/chat/completions` | 支持思考模型，已兼容 `` 解析 |
 | **OneAPI 中转站** | 各中转站地址不同 | 统一 OpenAI 格式，填入中转站提供的地址和 Key 即可 |
 | **Ollama（本地）** | `http://localhost:11434/v1/chat/completions` | 默认值，无需联网 |
 
