@@ -328,8 +328,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   await updateDisabledSitesList();
 
   $("clearCacheBtn")?.addEventListener("click", async () => {
-    if (confirm("Clear all translation cache and SRS data?")) {
-      await chrome.storage.local.remove(["srsData", "translationCache", "settings"]);
+    if (confirm("Clear cached translations and SRS learning data? Provider settings will be kept.")) {
+      await chrome.storage.local.remove(["srsData", "translationCache"]);
       location.reload();
     }
   });

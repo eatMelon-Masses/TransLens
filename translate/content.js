@@ -110,6 +110,20 @@
     return matches.filter((word) => word.length >= minLen && word.length <= maxLen);
   }
 
+  function getTranslationContext(text, targetWord) {
+    const lang = config.sourceLang || "zh-CN";
+    const entry = getLanguageEntry();
+    if (lang === "custom" || !entry.charClass) return text;
+
+    const pattern = getLanguageCharPattern();
+    for (const match of text.matchAll(pattern)) {
+      const run = match[0];
+      if (run.includes(targetWord)) return run;
+    }
+
+    return text;
+  }
+
   function getLangName() {
     const lang = config.sourceLang || "zh-CN";
     if (lang === "custom") return "Custom";
@@ -183,11 +197,14 @@
   function isUsableTranslation(value) {
     const text = String(value || "").replace(/\s+/g, " ").trim();
     if (!text) return false;
-    if (text.length > 160) return false;
+    if (text.length > 80) return false;
     if ((text.startsWith("{") && text.endsWith("}")) || (text.startsWith("[") && text.endsWith("]"))) {
       return false;
     }
     if (/"translation"\s*:/.test(text) || /"phonetic"\s*:/.test(text)) {
+      return false;
+    }
+    if (/[.!?。！？]/.test(text)) {
       return false;
     }
     return true;
@@ -195,6 +212,8 @@
 
   function getCachedTranslation(word) {
     const entry = getWordState(word);
+    if (entry?.language && entry.language !== (config.sourceLang || "zh-CN")) return null;
+    if (entry?.targetLang && entry.targetLang !== (config.targetLang || "en")) return null;
     if (!isUsableTranslation(entry?.translation)) return null;
     return {
       translation: String(entry.translation).replace(/\s+/g, " ").trim(),
@@ -207,6 +226,7 @@
     const entry = {
       word,
       language: config.sourceLang || "zh-CN",
+      targetLang: config.targetLang || "en",
       easiness: 2.5,
       interval: 0,
       repetitions: 0,
@@ -299,6 +319,7 @@
     const sourceLang = getLangName();
     const targetLangName =
       LANG_PATTERNS[config.targetLang || "en"]?.name || "English";
+    const context = getTranslationContext(sentence, targetWord);
 
     // 从 per-provider 配置中读取当前 provider 的 API 信息
     const provider = config.provider || "openai";
@@ -309,7 +330,7 @@
       const result = await chrome.runtime.sendMessage({
         type: "TRANSLATE",
         payload: {
-          sentence,
+          sentence: context,
           targetWord,
           sourceLang,
           targetLang: targetLangName,
@@ -561,6 +582,8 @@
             // 更新 SRS 翻译缓存
             let entry = getWordState(word);
             if (!entry) entry = createWordEntry(word);
+            entry.language = config.sourceLang || "zh-CN";
+            entry.targetLang = config.targetLang || "en";
             entry.translation = String(result.translation).replace(/\s+/g, " ").trim();
             entry.phonetic = result.phonetic || "";
             entry.contextCount = (entry.contextCount || 0) + 1;
