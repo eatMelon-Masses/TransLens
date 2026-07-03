@@ -10,6 +10,18 @@
 - AI 接口：OpenAI / Anthropic / 任意 OpenAI 兼容端点（Ollama、llama.cpp 等）
 - 数据存储：`chrome.storage.local`，所有数据留在本地
 
+## 已测试的 AI 接口
+
+选择「自定义（OpenAI 兼容）」后可填入任意兼容端点，以下为已验证可用的服务：
+
+| 服务 | 端点 | 说明 |
+|------|------|------|
+| **DeepSeek** | `https://api.deepseek.com/v1/chat/completions` | 性价比高，中文能力强 |
+| **OneAPI 中转站** | 各中转站地址不同 | 统一 OpenAI 格式，填入中转站提供的地址和 Key 即可 |
+| **Ollama（本地）** | `http://localhost:11434/v1/chat/completions` | 默认值，无需联网 |
+
+> 如果你测试过其他接口，欢迎提 PR 补充到这张表里！
+
 ## 本地运行
 
 ```
