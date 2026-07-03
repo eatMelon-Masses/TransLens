@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   snapshot:
@@ -16,15 +16,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Read version from manifest
+        id: version
+        run: |
+          VERSION=$(node -p "require('./translate/manifest.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Build snapshot zip
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           cd translate
-          TIMESTAMP=$(date +%Y%m%d%H%M)
           bash package.sh
 
-      - name: Upload snapshot artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload snapshot release
+        uses: softprops/action-gh-release@v2
         with:
-          name: TransLens-snapshot
-          path: translate/TransLens-*.zip
-          retention-days: 7
+          tag_name: snapshot
+          name: TransLens Snapshot
+          body: |
+            自动构建的最新开发版，每次 push 到 main 自动更新。
+            正式版请查看 [Releases](https://github.com/${{ github.repository }}/releases)。
+          prerelease: true
+          files: translate/TransLens-*.zip
