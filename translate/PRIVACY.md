@@ -1,6 +1,6 @@
 # TransLens Privacy Policy
 
-**Effective Date:** June 27, 2026
+**Effective Date:** July 3, 2026
 
 ## 1. Overview
 
@@ -13,7 +13,7 @@ TransLens handles the following data to provide its core functionality:
 - **Web page text snippets:** A sentence or short surrounding text and the selected word are used to request a translation.
 - **Settings:** AI provider, model, language preferences, display preferences, disabled sites, and related configuration.
 - **API credentials:** API keys entered by the user for OpenAI, Anthropic, or a custom OpenAI-compatible endpoint.
-- **Learning data:** Word history, translations, phonetics, review intervals, mastery status, and timestamps.
+- **Learning data:** Word history, translations, phonetics, review intervals, mastery status, source/target language per word, and timestamps.
 
 ## 3. Local Storage
 
