@@ -4,6 +4,11 @@
 
 **纯前端 Chrome 扩展，无需后端，代码即文档。**
 
+## 下载
+
+- **正式版**：[Releases](https://github.com/eatMelon-Masses/TransLens/releases) — 稳定版本，手动打 tag 触发打包
+- **快照版**：[Snapshot](https://github.com/eatMelon-Masses/TransLens/releases/tag/snapshot) — 每次 push 到 main 自动构建的最新开发版（带时间戳，可追溯）
+
 ## 技术栈
 
 - Manifest V3 + Vanilla JavaScript（无框架，无构建步骤）
