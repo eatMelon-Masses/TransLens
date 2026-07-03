@@ -31,3 +31,6 @@ __pycache__/
 # Local development files
 *.local
 .env
+
+# Review materials (not for public repo)
+审核材料/
