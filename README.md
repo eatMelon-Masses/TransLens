@@ -10,18 +10,28 @@
 |---|---|---|
 | ![Screenshot 1](https://lh3.googleusercontent.com/p0hytvmqgw17_c0nLcBkNy7VxwH2TrHc8RJK4ics_PIJUHBPtt0VHwc8cGkxaX_uwsjlM7couxaHYFWWzCaUq17Tmg=s1600-w1600-h1000) | ![Screenshot 2](https://lh3.googleusercontent.com/XxXFxUvUoj_T6nqnFkFa4B_lyBTcvFZ_peGlwYJ5EGt9Fhnq1drjeWgI6yjGaU4ez9hJOY_XJpXtHP9IKcWVqbG8zfY=s1600-w1600-h1000) | ![Screenshot 3](https://lh3.googleusercontent.com/AVw2c5obBw2KnTlzlb7ZH8OMdgeg5XVenkq7SNKJ7kXgu2qhMcX-7k9oE6csxxrDGu0EYv9YbslcAB4yy9JSri09uQ=s1600-w1600-h1000) |
 
-## 下载
+## 功能
 
-- **正式版**：[Releases](https://github.com/eatMelon-Masses/TransLens/releases) — 稳定版本，手动打 tag 触发打包
-- **快照版**：[Snapshot](https://github.com/eatMelon-Masses/TransLens/releases/tag/snapshot) — 每次 push 到 main 自动构建的最新开发版（带时间戳，可追溯）
+- **语境学习**：自动检测网页外语文本，内联标注翻译，支持中/日/韩/法/德/西/俄/阿拉伯文
+- **间隔重复（SRS）**：内置 SM-2 算法，在遗忘前提醒复习，跟踪掌握程度
+- **AI 翻译**：支持 OpenAI、Anthropic 及任意 OpenAI 兼容端点（DeepSeek、豆包、MiniMax、Ollama 等）
+- **隐私优先**：所有数据存储在浏览器本地，无追踪、无分析
+- **高度可定制**：选择语言、调整选词比例、每日新词上限、按站点禁用（支持通配符）
+- **数据管理**：导出词汇表 CSV，清除学习数据时保留设置
+- **智能跳过**：自动跳过搜索框和表单输入，不干扰用户操作
 
-## 技术栈
+## 快速开始
 
-- Manifest V3 + Vanilla JavaScript（无框架，无构建步骤）
-- AI 接口：OpenAI / Anthropic / 任意 OpenAI 兼容端点（Ollama、llama.cpp 等）
-- 数据存储：`chrome.storage.local`，所有数据留在本地
+```
+1. chrome://extensions/
+2. 打开「开发者模式」
+3. 点击「加载已解压的扩展程序」→ 选择 translate/ 文件夹
+4. 访问外语网站，即可看到效果
+```
 
-## 已测试的 AI 接口
+修改代码后，在扩展管理页点击刷新按钮即可，无需重新编译。
+
+### 配置 AI 接口
 
 选择「自定义（OpenAI 兼容）」后可填入任意兼容端点，以下为已验证可用的服务：
 
@@ -35,16 +45,10 @@
 
 > 如果你测试过其他接口，欢迎提 PR 补充到这张表里！
 
-## 本地运行
+## 下载
 
-```
-1. chrome://extensions/
-2. 打开「开发者模式」
-3. 点击「加载已解压的扩展程序」→ 选择 translate/ 文件夹
-4. 访问外语网站，即可看到效果
-```
-
-修改代码后，在扩展管理页点击刷新按钮即可，无需重新编译。
+- **正式版**：[Releases](https://github.com/eatMelon-Masses/TransLens/releases) — 稳定版本，手动打 tag 触发打包
+- **快照版**：[Snapshot](https://github.com/eatMelon-Masses/TransLens/releases/tag/snapshot) — 每次 push 到 main 自动构建的最新开发版（带时间戳，可追溯）
 
 ## 项目结构
 
