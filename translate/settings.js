@@ -232,6 +232,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
+    // 实时读取 disabledSites，避免内存中的旧值覆盖用户在列表中的增删
+    const { settings: latestSettings } = await chrome.storage.local.get("settings");
+    const latestDisabled = latestSettings?.disabledSites || settings.disabledSites || [];
+
     const newSettings = {
       provider,
       providers: settings.providers,
@@ -247,7 +251,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       intervalMultiplier: parseFloat($("intervalMultiplier").value),
       maxNewWords: parseInt($("maxNewWords").value),
       masteryThreshold: parseInt($("masteryThreshold").value),
-      disabledSites: settings.disabledSites || []
+      disabledSites: latestDisabled
     };
 
     await chrome.storage.local.set({ settings: newSettings });
@@ -299,14 +303,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         },
       });
 
-      if (resp?.error) {
+      if (!resp) {
+        result.textContent = "Failed: 未收到响应，请检查 Service Worker 是否正常运行";
+        result.className = "test-result error";
+      } else if (resp?.error) {
         result.textContent = "Failed: " + resp.error;
         result.className = "test-result error";
       } else if (resp?.translation) {
         result.textContent = "OK: " + resp.translation;
         result.className = "test-result success";
       } else {
-        result.textContent = "Unexpected response";
+        result.textContent = "Unexpected response: " + JSON.stringify(resp);
         result.className = "test-result error";
       }
     } catch (err) {
@@ -342,10 +349,34 @@ document.addEventListener("DOMContentLoaded", async () => {
     a.click();
   });
 
+  $("addDisabledBtn")?.addEventListener("click", async () => {
+    const input = $("addDisabledInput");
+    const value = (input?.value || "").trim().toLowerCase();
+    if (!value) return;
+    // 简单格式校验：至少包含一个点或以 * 开头
+    if (!value.includes(".") && !value.startsWith("*")) {
+      alert("请输入有效的域名，如 example.com 或 *.example.com");
+      return;
+    }
+    const { settings: freshSettings } = await chrome.storage.local.get("settings");
+    const s = freshSettings || {};
+    const current = s.disabledSites || [];
+    if (current.includes(value)) {
+      input.value = "";
+      return;
+    }
+    const updated = [...current, value];
+    await chrome.storage.local.set({ settings: { ...s, disabledSites: updated } });
+    settings.disabledSites = updated; // 同步内存，避免 Save 时覆盖
+    input.value = "";
+    await updateDisabledSitesList();
+  });
+
   $("clearDisabledBtn")?.addEventListener("click", async () => {
-    const { settings } = await chrome.storage.local.get("settings");
-    const s = settings || {};
+    const { settings: freshSettings } = await chrome.storage.local.get("settings");
+    const s = freshSettings || {};
     await chrome.storage.local.set({ settings: { ...s, disabledSites: [] } });
+    settings.disabledSites = []; // 同步内存
     await updateDisabledSitesList();
   });
 });
@@ -380,10 +411,22 @@ async function updateDisabledSitesList() {
   if (!container) return;
 
   if (disabledSites.length === 0) {
-    container.innerHTML = '<p style="font-size: 13px; color: #9ca3af;">No disabled sites</p>';
+    container.innerHTML = '<p style="font-size: 13px; color: #9ca3af;">暂无禁用网站</p>';
   } else {
     container.innerHTML = disabledSites
-      .map(site => `<span style="display:inline-block;background:#f3f4f6;padding:4px 8px;border-radius:4px;margin:4px;font-size:13px;">${site}</span>`)
+      .map(site => `<span style="display:inline-flex;align-items:center;gap:4px;background:#f3f4f6;padding:4px 8px;border-radius:4px;margin:4px;font-size:13px;">${site}<button data-site="${site}" class="remove-disabled-btn" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:15px;padding:0 2px;line-height:1;" title="移除">×</button></span>`)
       .join("");
+    // 绑定逐条删除事件
+    container.querySelectorAll(".remove-disabled-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const target = btn.dataset.site;
+        const { settings: freshSettings } = await chrome.storage.local.get("settings");
+        const s = freshSettings || {};
+        const updated = (s.disabledSites || []).filter(site => site !== target);
+        await chrome.storage.local.set({ settings: { ...s, disabledSites: updated } });
+        settings.disabledSites = updated; // 同步内存
+        await updateDisabledSitesList();
+      });
+    });
   }
 }

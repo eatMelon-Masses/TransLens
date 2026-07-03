@@ -1,8 +1,8 @@
 # TransLens
 
-**Language Learning Assistant for Chrome**
+**翻译透镜-语言学习工具 | Language Learning Assistant for Chrome**
 
-[![Version](https://img.shields.io/badge/version-2.0-blue)](https://chrome.google.com/webstore)
+[![Version](https://img.shields.io/badge/version-2.2-blue)](https://chrome.google.com/webstore)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 > Learn languages naturally while browsing the web. TransLens uses AI translation and spaced repetition to help you build vocabulary in context.
@@ -14,6 +14,8 @@
 - 🤖 **AI Translation**: OpenAI / Anthropic / custom OpenAI-compatible endpoints
 - 🔒 **Privacy First**: Learning data stored locally; translation snippets sent only to the provider you configure
 - ⚡ **Smart Annotation**: Learn words in their natural context
+- 🚫 **Smart Skipping**: Automatically skips search boxes and form input fields to avoid interference
+- 🎯 **Flexible Site Control**: Disable per site via popup, or manually add domains with wildcard support (e.g. `*.example.com`) in Settings
 
 ## Installation
 
@@ -53,6 +55,7 @@ translate/
 ├── popup.html/js      # Extension popup
 ├── settings.html/js   # Settings page
 ├── settings.css       # Settings styles
+├── _locales/          # i18n (en, zh_CN)
 ├── icon48.png         # Extension icon (48px)
 ├── icon128.png        # Extension icon (128px)
 └── privacy.html       # Privacy policy
@@ -65,7 +68,7 @@ chmod +x package.sh
 ./package.sh
 ```
 
-This creates `TransLens-2.0.zip` ready for upload.
+This creates `TransLens-2.2.zip` ready for upload.
 
 ## Tech Stack
 
@@ -106,4 +109,4 @@ MIT License - See LICENSE file for details
 
 ---
 
-**Version**: 2.0  
+**Version**: 2.2

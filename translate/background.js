@@ -10,6 +10,151 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+function normalizeTextField(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function isUsableTranslation(value) {
+  const text = normalizeTextField(value);
+  if (!text) return false;
+  if (text.length > 160) return false;
+  if ((text.startsWith("{") && text.endsWith("}")) || (text.startsWith("[") && text.endsWith("]"))) {
+    return false;
+  }
+  if (/"translation"\s*:/.test(text) || /"phonetic"\s*:/.test(text)) {
+    return false;
+  }
+  return true;
+}
+
+function escapeControlCharsInJsonStrings(jsonText) {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+
+  for (const char of jsonText) {
+    if (!inString) {
+      result += char;
+      if (char === '"') inString = true;
+      continue;
+    }
+
+    if (escaped) {
+      result += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      result += char;
+      escaped = true;
+    } else if (char === '"') {
+      result += char;
+      inString = false;
+    } else if (char === "\n") {
+      result += "\\n";
+    } else if (char === "\r") {
+      result += "\\r";
+    } else if (char === "\t") {
+      result += "\\t";
+    } else {
+      result += char;
+    }
+  }
+
+  return result;
+}
+
+function escapeControlCharsInJsonStringValue(value) {
+  return value
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t");
+}
+
+function readJsonStringField(text, fieldName) {
+  const marker = new RegExp(`"${fieldName}"\\s*:\\s*"`, "i");
+  const match = marker.exec(text);
+  if (!match) return "";
+
+  let raw = "";
+  let escaped = false;
+  for (let i = match.index + match[0].length; i < text.length; i++) {
+    const char = text[i];
+    if (escaped) {
+      raw += "\\" + char;
+      escaped = false;
+    } else if (char === "\\") {
+      escaped = true;
+    } else if (char === '"') {
+      break;
+    } else {
+      raw += char;
+    }
+  }
+
+  try {
+    return JSON.parse(`"${escapeControlCharsInJsonStringValue(raw)}"`);
+  } catch (e) {
+    return raw;
+  }
+}
+
+function parseTranslationContent(content) {
+  const text = String(content || "").trim();
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  const jsonText = jsonMatch ? jsonMatch[0] : "";
+
+  if (jsonText) {
+    try {
+      const parsed = JSON.parse(jsonText);
+      const translation = normalizeTextField(parsed.translation);
+      if (!isUsableTranslation(translation)) {
+        return { error: "模型返回的 JSON 缺少有效 translation 字段" };
+      }
+      return {
+        targetWord: null,
+        translation,
+        phonetic: normalizeTextField(parsed.phonetic)
+      };
+    } catch (e) {
+      try {
+        const parsed = JSON.parse(escapeControlCharsInJsonStrings(jsonText));
+        const translation = normalizeTextField(parsed.translation);
+        if (!isUsableTranslation(translation)) {
+          return { error: "模型返回的 JSON 缺少有效 translation 字段" };
+        }
+        return {
+          targetWord: null,
+          translation,
+          phonetic: normalizeTextField(parsed.phonetic)
+        };
+      } catch (err) {
+        const translation = normalizeTextField(readJsonStringField(jsonText, "translation"));
+        const phonetic = normalizeTextField(readJsonStringField(jsonText, "phonetic"));
+        if (isUsableTranslation(translation)) {
+          return {
+            targetWord: null,
+            translation,
+            phonetic
+          };
+        }
+        return { error: "模型返回的 JSON 无法解析出有效翻译" };
+      }
+    }
+  }
+
+  if (!isUsableTranslation(text)) {
+    return { error: "模型返回内容不是可展示的短翻译" };
+  }
+
+  return {
+    targetWord: null,
+    translation: text,
+    phonetic: ""
+  };
+}
+
 async function handleTranslate({ sentence, targetWord, sourceLang, targetLang, settings }) {
   const { provider, apiKey, model, customUrl } = settings;
 
@@ -36,8 +181,14 @@ Sentence: ${sentence}`;
       return callOpenAI(prompt, apiKey, model);
     case "anthropic":
       return callAnthropic(prompt, apiKey, model);
-    case "custom":
-      return callCustom(prompt, apiKey, model, customUrl);
+    case "custom": {
+      // thinking 模型（deepseek-v4-flash 等）推理过程较长，精简 prompt 以减少 token 消耗
+      const compactPrompt =
+        `Translate "${targetWord}" (${sourceLang}) to ${targetLang} in this sentence:\n` +
+        `"${sentence}"\n` +
+        `Return JSON only: {"translation": "...", "phonetic": "/IPA of translation/"}`;
+      return callCustom(compactPrompt, apiKey, model, customUrl);
+    }
     default:
       return { error: `Unknown provider: ${provider}` };
   }
@@ -71,26 +222,7 @@ async function callOpenAI(prompt, apiKey, model) {
   const data = await response.json();
   const content = data.choices[0].message.content.trim();
 
-  // 解析 AI 返回的 JSON（包含翻译和音标）
-  try {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        targetWord: null,
-        translation: parsed.translation || content,
-        phonetic: parsed.phonetic || ""
-      };
-    }
-  } catch (e) {
-    // JSON 解析失败，返回纯翻译
-  }
-
-  return {
-    targetWord: null,
-    translation: content,
-    phonetic: ""
-  };
+  return parseTranslationContent(content);
 }
 
 // ─── Anthropic ────────────────────────────────────────────
@@ -120,26 +252,7 @@ async function callAnthropic(prompt, apiKey, model) {
   const data = await response.json();
   const content = data.content[0].text.trim();
 
-  // 解析 AI 返回的 JSON（包含翻译和音标）
-  try {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        targetWord: null,
-        translation: parsed.translation || content,
-        phonetic: parsed.phonetic || ""
-      };
-    }
-  } catch (e) {
-    // JSON 解析失败，返回纯翻译
-  }
-
-  return {
-    targetWord: null,
-    translation: content,
-    phonetic: ""
-  };
+  return parseTranslationContent(content);
 }
 
 // ─── Custom (OpenAI-compatible) ───────────────────────────
@@ -157,10 +270,10 @@ async function callCustom(prompt, apiKey, model, customUrl) {
     body: JSON.stringify({
       model: model || "",
       messages: [
-        { role: "system", content: "You are a precise translator. Return JSON with translation and phonetic." },
+        { role: "system", content: "Return JSON: {\"translation\":\"...\",\"phonetic\":\"/IPA/\"}" },
         { role: "user", content: prompt },
       ],
-      max_tokens: 80,
+      max_tokens: 4096,
       temperature: 0.3,
     }),
   });
@@ -171,26 +284,17 @@ async function callCustom(prompt, apiKey, model, customUrl) {
   }
 
   const data = await response.json();
-  const content = data.choices[0].message.content.trim();
 
-  // 解析 AI 返回的 JSON（包含翻译和音标）
-  try {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        targetWord: null,
-        translation: parsed.translation || content,
-        phonetic: parsed.phonetic || ""
-      };
-    }
-  } catch (e) {
-    // JSON 解析失败，返回纯翻译
+  // thinking 模型（如 deepseek-v4-flash）可能将推理过程放在 reasoning_content，content 为空
+  const message = data.choices?.[0]?.message;
+  const content = (message?.content || "").trim();
+
+  if (!content) {
+    throw new Error(
+      `"${model || '当前模型'}" 返回为空，可能是推理模型 token 耗尽。` +
+      `请重试或换用非推理模型（如 deepseek-chat）`
+    );
   }
 
-  return {
-    targetWord: null,
-    translation: content,
-    phonetic: ""
-  };
+  return parseTranslationContent(content);
 }

@@ -1,0 +1,10 @@
+{
+  "extension_name": {
+    "message": "翻译透镜-语言学习工具",
+    "description": "Name of the extension"
+  },
+  "extension_description": {
+    "message": "语言学习助手 — 边浏览网页边学词汇",
+    "description": "Description of the extension"
+  }
+}

@@ -1,11 +1,14 @@
-# TransLens - Chrome Web Store Listing
+# TransLens (翻译透镜-语言学习工具) - Chrome Web Store Listing
 
 ## Short Description (132 characters)
 Learn languages while browsing! AI-powered vocabulary annotation with SRS spaced repetition.
 
+## 中文简短描述（≤132 字符）
+浏览网页学外语！AI 智能标注生词，配合间隔重复算法高效记忆词汇。
+
 ## Full Description
 
-**TransLens** is a smart language learning assistant that helps you build vocabulary naturally while browsing the web.
+**TransLens (翻译透镜-语言学习工具)** is a smart language learning assistant that helps you build vocabulary naturally while browsing the web.
 
 ### 🌟 Key Features
 
@@ -56,8 +59,8 @@ Learn languages while browsing! AI-powered vocabulary annotation with SRS spaced
 
 ### 📖 Privacy Policy
 
-TransLens does not operate a developer server, does not use analytics, and does not sell user data. To provide translations, the extension sends the selected word and surrounding text directly to the AI provider configured by the user. See full privacy policy at: [privacy policy URL]
+TransLens does not operate a developer server, does not use analytics, and does not sell user data. To provide translations, the extension sends the selected word and surrounding text directly to the AI provider configured by the user. See full privacy policy at: https://eatmelon-masses.github.io/privacy-policy/extensions/translens/
 
 ---
 
-**Version:** 2.0
+**Version:** 2.1

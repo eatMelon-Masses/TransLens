@@ -1,0 +1,10 @@
+{
+  "extension_name": {
+    "message": "TransLens - Language Learning Tool",
+    "description": "Name of the extension"
+  },
+  "extension_description": {
+    "message": "Language Learning Assistant — learn vocabulary while browsing",
+    "description": "Description of the extension"
+  }
+}

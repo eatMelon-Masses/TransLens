@@ -1,6 +1,6 @@
 # TransLens Privacy Policy
 
-**Effective Date:** June 13, 2026
+**Effective Date:** June 27, 2026
 
 ## 1. Overview
 

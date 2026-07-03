@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Version
-VERSION="2.0"
+VERSION="2.1"
 ZIP_NAME="TransLens-${VERSION}.zip"
 
 # Files to include
@@ -24,6 +24,8 @@ FILES=(
   "icon48.png"
   "icon128.png"
   "privacy.html"
+  "_locales/en/messages.json"
+  "_locales/zh_CN/messages.json"
 )
 
 # Check all required files exist

@@ -48,6 +48,13 @@
     ar: { name: "Arabic", source: "[\\u0600-\\u06ff]{2,}" },
   };
 
+  const SEGMENTER_LOCALES = {
+    "zh-CN": "zh-CN",
+    "zh-TW": "zh-TW",
+    ja: "ja",
+    ko: "ko",
+  };
+
   function getMaxPhraseLen(entry) {
     const minLen = Number(config.minWordLen || 1);
     const defaultMax = entry?.defaultMaxLen || 6;
@@ -66,6 +73,43 @@
     return new RegExp(entry.source, "g");
   }
 
+  function getLanguageEntry() {
+    const lang = config.sourceLang || "zh-CN";
+    return LANG_PATTERNS[lang] || LANG_PATTERNS["zh-CN"];
+  }
+
+  function getLanguageCharPattern() {
+    const entry = getLanguageEntry();
+    return entry.charClass ? new RegExp(`${entry.charClass}+`, "g") : getLangPattern();
+  }
+
+  function getWordCandidates(text) {
+    const lang = config.sourceLang || "zh-CN";
+    const entry = getLanguageEntry();
+    const minLen = Number(config.minWordLen || 2);
+    const maxLen = getMaxPhraseLen(entry);
+
+    if (lang !== "custom" && entry.charClass && window.Intl?.Segmenter && SEGMENTER_LOCALES[lang]) {
+      const segmenter = new Intl.Segmenter(SEGMENTER_LOCALES[lang], { granularity: "word" });
+      const runs = text.match(getLanguageCharPattern()) || [];
+      const words = [];
+
+      for (const run of runs) {
+        for (const part of segmenter.segment(run)) {
+          const word = part.segment.trim();
+          if (!part.isWordLike) continue;
+          if (word.length < minLen || word.length > maxLen) continue;
+          words.push(word);
+        }
+      }
+
+      return words;
+    }
+
+    const matches = text.match(getLangPattern()) || [];
+    return matches.filter((word) => word.length >= minLen && word.length <= maxLen);
+  }
+
   function getLangName() {
     const lang = config.sourceLang || "zh-CN";
     if (lang === "custom") return "Custom";
@@ -75,7 +119,6 @@
   // ─── DOM Text Extraction ──────────────────────────────
 
   function extractChineseTexts() {
-    const minLen = config.minWordLen || 2;
     const results = [];
 
     const walker = document.createTreeWalker(
@@ -93,6 +136,10 @@
 
           // 跳过 script/style 等
           const parent = node.parentElement?.tagName.toLowerCase();
+          // 跳过表单元素（搜索框、文本框等），避免干扰用户输入
+          if (["input", "textarea", "select", "button"].includes(parent)) {
+            return NodeFilter.FILTER_REJECT;
+          }
           if (parent === "script" || parent === "style" || parent === "noscript") {
             return NodeFilter.FILTER_REJECT;
           }
@@ -112,10 +159,7 @@
       const text = textNode.textContent.trim();
       if (text.length < 2) continue;
 
-      // 每次新建正则实例，避免 lastIndex 状态问题
-      const matchPattern = getLangPattern();
-      const matches = text.match(matchPattern) || [];
-      const validWords = matches.filter((w) => w.length >= minLen);
+      const validWords = getWordCandidates(text);
 
       if (validWords.length > 0) {
         results.push({
@@ -136,11 +180,24 @@
     return srsData[word] || null;
   }
 
+  function isUsableTranslation(value) {
+    const text = String(value || "").replace(/\s+/g, " ").trim();
+    if (!text) return false;
+    if (text.length > 160) return false;
+    if ((text.startsWith("{") && text.endsWith("}")) || (text.startsWith("[") && text.endsWith("]"))) {
+      return false;
+    }
+    if (/"translation"\s*:/.test(text) || /"phonetic"\s*:/.test(text)) {
+      return false;
+    }
+    return true;
+  }
+
   function getCachedTranslation(word) {
     const entry = getWordState(word);
-    if (!entry?.translation) return null;
+    if (!isUsableTranslation(entry?.translation)) return null;
     return {
-      translation: entry.translation,
+      translation: String(entry.translation).replace(/\s+/g, " ").trim(),
       phonetic: entry.phonetic || "",
     };
   }
@@ -407,6 +464,19 @@
     await Promise.all(workers);
   }
 
+  // ─── Disabled Sites Matching ───────────────────────────
+
+  // 支持精确匹配和通配符（*.example.com）
+  function isHostDisabled(hostname, disabledSites) {
+    return disabledSites.some(site => {
+      if (site.startsWith("*.")) {
+        const suffix = site.slice(2); // "example.com"
+        return hostname === suffix || hostname.endsWith("." + suffix);
+      }
+      return hostname === site;
+    });
+  }
+
   async function execute() {
     if (executeRunning) return;
     executeRunning = true;
@@ -418,7 +488,7 @@
       // 检查当前网站是否在禁用列表中
       const currentHost = window.location.hostname;
       const disabledSites = config.disabledSites || [];
-      if (disabledSites.includes(currentHost)) {
+      if (isHostDisabled(currentHost, disabledSites)) {
         console.log(`[TransLens] 当前网站 ${currentHost} 已被禁用，跳过翻译`);
         return;
       }
@@ -487,17 +557,17 @@
         await runWithConcurrency(pendingTranslations, concurrency, async ({ item, word }) => {
           const result = await translateWord(item.text, word);
 
-          if (result && result.translation) {
+          if (result && isUsableTranslation(result.translation)) {
             // 更新 SRS 翻译缓存
             let entry = getWordState(word);
             if (!entry) entry = createWordEntry(word);
-            entry.translation = result.translation;
+            entry.translation = String(result.translation).replace(/\s+/g, " ").trim();
             entry.phonetic = result.phonetic || "";
             entry.contextCount = (entry.contextCount || 0) + 1;
             entry.lastSeen = Date.now();
             srsDirty = true;
 
-            const success = annotateWordInText(item, word, result.translation, result.phonetic);
+            const success = annotateWordInText(item, word, entry.translation, result.phonetic);
             if (success) annotated++;
           }
         });

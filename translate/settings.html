@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TransLens Settings</title>
+  <title>翻译透镜-语言学习工具 / TransLens — Settings</title>
   <link rel="stylesheet" href="settings.css">
 </head>
 <body>
@@ -11,8 +11,8 @@
     <!-- Sidebar -->
     <aside class="sidebar">
       <div class="logo">
-        <h1>TransLens</h1>
-        <span class="subtitle">Language Learning</span>
+        <h1>翻译透镜 <small>语言学习工具</small></h1>
+        <span class="subtitle">TransLens  ·  Language Learning</span>
       </div>
       <nav>
         <a href="#provider" class="nav-item active" data-section="provider">AI Provider</a>
@@ -226,11 +226,16 @@
       <section id="disabled" class="section">
         <h2>Disabled Sites</h2>
         <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">
-          在这些网站上 TransLens 不会自动翻译
+          在这些网站上 TransLens 不会自动翻译<br>
+          支持通配符，如 <code>*.example.com</code>（匹配 example.com 及其所有子域名）
         </p>
+        <div class="form-group" style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="addDisabledInput" placeholder="example.com 或 *.example.com" style="flex:1;">
+          <button id="addDisabledBtn" class="btn btn-secondary">添加</button>
+        </div>
         <div id="disabledSitesList" style="margin-bottom: 12px;"></div>
         <div class="form-group">
-          <button id="clearDisabledBtn" class="btn btn-secondary">Clear Disabled List</button>
+          <button id="clearDisabledBtn" class="btn btn-secondary">清空全部</button>
         </div>
       </section>
 
