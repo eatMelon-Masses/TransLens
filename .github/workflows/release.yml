@@ -24,6 +24,8 @@ jobs:
           echo "Version: $VERSION"
 
       - name: Build zip package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           cd translate
           bash package.sh

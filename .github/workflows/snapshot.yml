@@ -1,0 +1,30 @@
+name: Build Snapshot
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build snapshot zip
+        run: |
+          cd translate
+          TIMESTAMP=$(date +%Y%m%d%H%M)
+          bash package.sh
+
+      - name: Upload snapshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TransLens-snapshot
+          path: translate/TransLens-*.zip
+          retention-days: 7

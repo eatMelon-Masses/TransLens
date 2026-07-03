@@ -7,8 +7,12 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Version
-VERSION="2.1"
+# Version — 优先用环境变量（CI 注入），否则取 manifest.json
+if [[ -n "$VERSION" ]]; then
+  : # 已由 CI 注入
+else
+  VERSION=$(node -p "require('./manifest.json').version" 2>/dev/null || echo "dev")
+fi
 ZIP_NAME="TransLens-${VERSION}.zip"
 
 # Files to include
