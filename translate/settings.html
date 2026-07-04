@@ -17,6 +17,7 @@
       <nav>
         <a href="#provider" class="nav-item active" data-section="provider">AI Provider</a>
         <a href="#language" class="nav-item" data-section="language">Language</a>
+        <a href="#level" class="nav-item" data-section="level">My Level</a>
         <a href="#learning" class="nav-item" data-section="learning">Learning Mode</a>
         <a href="#display" class="nav-item" data-section="display">Display</a>
         <a href="#srs" class="nav-item" data-section="srs">SRS Settings</a>
@@ -97,6 +98,7 @@
         <div class="form-group">
           <label for="sourceLang">Source Language (学习内容)</label>
           <select id="sourceLang">
+            <option value="en">English</option>
             <option value="zh-CN">Chinese Simplified (简体中文)</option>
             <option value="zh-TW">Chinese Traditional (繁體中文)</option>
             <option value="ja">Japanese (日本語)</option>
@@ -127,6 +129,50 @@
             <option value="es">Spanish</option>
           </select>
         </div>
+      </section>
+
+      <!-- My Level -->
+      <section id="level" class="section">
+        <h2>My Level</h2>
+
+        <!-- Returning user banner -->
+        <div id="levelBanner" class="level-banner hidden">
+          <span>完成水平校准可改善标注效果，让 TransLens 为你推荐更合适的生词。</span>
+          <button id="startCalibrationBtn" class="btn btn-primary btn-sm">开始校准</button>
+        </div>
+
+        <!-- Current level display -->
+        <div id="levelDisplay" class="level-display">
+          <div class="level-badge-container">
+            <span id="levelBadge" class="level-badge">—</span>
+          </div>
+          <div class="level-info">
+            <div id="levelLabel" class="level-label">未设置</div>
+            <div id="vocabEstimate" class="level-detail">完成水平评估后可查看估算词汇量</div>
+          </div>
+        </div>
+
+        <!-- Level actions -->
+        <div class="level-actions">
+          <button id="retakeQuizBtn" class="btn btn-secondary">重新测试</button>
+          <div class="manual-adjust">
+            <label for="manualLevel">手动设置等级：</label>
+            <select id="manualLevel">
+              <option value="">— 选择等级 —</option>
+              <option value="A1">A1 — Beginner（~1,000 词）</option>
+              <option value="A2">A2 — Elementary（~2,000 词）</option>
+              <option value="B1">B1 — Intermediate（~3,500 词）</option>
+              <option value="B2">B2 — Upper-Intermediate（~5,500 词）</option>
+              <option value="C1">C1 — Advanced（~8,000 词）</option>
+            </select>
+            <button id="applyManualLevelBtn" class="btn btn-secondary btn-sm">应用</button>
+          </div>
+        </div>
+
+        <span class="hint">
+          水平评估基于 CEFR 标准（参考 <a href="https://github.com/openlanguageprofiles/olp-en-cefrj" target="_blank">CEFR-J</a> + <a href="https://www.lextale.com/whatislextale.html" target="_blank">LexTALE</a> 假词校正法）。<br>
+          评估结果仅保存在本地浏览器中，不会上传。
+        </span>
       </section>
 
       <!-- Learning Mode -->
@@ -252,6 +298,111 @@
     </main>
   </div>
 
+  <!-- Onboarding Modal -->
+  <div id="onboardingModal" class="onboarding-overlay hidden">
+    <div class="onboarding-card">
+      <!-- Step 1: Welcome + Language -->
+      <div id="onboardStep1" class="onboard-step">
+        <div class="onboard-header">
+          <h2>👋 Welcome to TransLens</h2>
+          <p>在开始之前，让我们先了解你的语言水平。<br>这将帮助 TransLens 为你推荐最适合学习的生词。</p>
+        </div>
+        <div class="form-group">
+          <label for="onboardSourceLang">你正在学习什么语言？</label>
+          <select id="onboardSourceLang">
+            <option value="en">English（英语）</option>
+            <option value="zh-CN">Chinese Simplified（简体中文）</option>
+            <option value="zh-TW">Chinese Traditional（繁體中文）</option>
+            <option value="ja">Japanese（日本語）</option>
+            <option value="ko">Korean（한국어）</option>
+            <option value="fr">French（Français）</option>
+            <option value="de">German（Deutsch）</option>
+            <option value="es">Spanish（Español）</option>
+            <option value="ru">Russian（Русский）</option>
+            <option value="ar">Arabic（العربية）</option>
+          </select>
+        </div>
+        <button id="onboardNext1Btn" class="btn btn-primary" style="width:100%;">下一步</button>
+      </div>
+
+      <!-- Step 2a: English Adaptive Quiz -->
+      <div id="onboardStep2Quiz" class="onboard-step hidden">
+        <div class="onboard-header">
+          <h2>📝 Vocabulary Check</h2>
+          <p>下面会依次显示一些英文单词。<br>请点击 <strong>"认识"</strong> 如果你知道这个词的意思。</p>
+        </div>
+        <div class="quiz-container">
+          <div id="quizProgressBar" class="quiz-progress">
+            <div id="quizProgressFill" class="quiz-progress-fill" style="width: 0%"></div>
+          </div>
+          <div id="quizRoundLabel" class="quiz-round-label">Round 1 / 5</div>
+          <div id="quizWord" class="quiz-word">hello</div>
+          <div id="quizHint" class="quiz-hint"></div>
+          <div class="quiz-buttons">
+            <button id="quizKnowBtn" class="btn btn-quiz-know">认识 ✓</button>
+            <button id="quizDontKnowBtn" class="btn btn-quiz-dontknow">不认识 ✗</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2b: Manual Level Selection (non-English) -->
+      <div id="onboardStep2Manual" class="onboard-step hidden">
+        <div class="onboard-header">
+          <h2>📊 Your Level</h2>
+          <p>请选择你认为最符合的等级。<br>（目前自动测评仅支持英语，其他语言可手动设置）</p>
+        </div>
+        <div class="manual-level-grid">
+          <label class="manual-level-card" data-value="A1">
+            <input type="radio" name="manualOnboardLevel" value="A1">
+            <div class="ml-label">A1</div>
+            <div class="ml-name">Beginner</div>
+            <div class="ml-desc">能理解并使用日常基本用语</div>
+          </label>
+          <label class="manual-level-card" data-value="A2">
+            <input type="radio" name="manualOnboardLevel" value="A2">
+            <div class="ml-label">A2</div>
+            <div class="ml-name">Elementary</div>
+            <div class="ml-desc">能理解常用表达，进行简单交流</div>
+          </label>
+          <label class="manual-level-card" data-value="B1">
+            <input type="radio" name="manualOnboardLevel" value="B1">
+            <div class="ml-label">B1</div>
+            <div class="ml-name">Intermediate</div>
+            <div class="ml-desc">能理解工作、学校中常见话题的要点</div>
+          </label>
+          <label class="manual-level-card" data-value="B2">
+            <input type="radio" name="manualOnboardLevel" value="B2">
+            <div class="ml-label">B2</div>
+            <div class="ml-name">Upper-Intermediate</div>
+            <div class="ml-desc">能理解复杂文章的主旨，流利交流</div>
+          </label>
+          <label class="manual-level-card" data-value="C1">
+            <input type="radio" name="manualOnboardLevel" value="C1">
+            <div class="ml-label">C1</div>
+            <div class="ml-name">Advanced</div>
+            <div class="ml-desc">能理解广泛的高难度文本，自如表达</div>
+          </label>
+        </div>
+        <button id="onboardManualNextBtn" class="btn btn-primary" style="width:100%;margin-top:16px;">下一步</button>
+      </div>
+
+      <!-- Step 3: Result -->
+      <div id="onboardStep3" class="onboard-step hidden">
+        <div class="onboard-header">
+          <h2>🎯 Your Level</h2>
+        </div>
+        <div class="result-container">
+          <div id="resultBadge" class="result-badge">B1</div>
+          <div id="resultLevelName" class="result-level-name">Intermediate</div>
+          <div id="resultVocab" class="result-vocab">Estimated Vocabulary: ~3,500 words</div>
+          <div id="resultDesc" class="result-desc"></div>
+        </div>
+        <button id="onboardFinishBtn" class="btn btn-primary" style="width:100%;margin-top:20px;">开始使用 TransLens</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="vocab-data.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>

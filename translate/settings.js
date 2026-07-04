@@ -52,6 +52,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     intervalMultiplier: 2.5,
     maxNewWords: 50,
     masteryThreshold: 6,
+    onboardingCompleted: false,
+    learnerLevel: null,
+    estimatedVocabulary: null,
+    levelSource: null
   };
 
   // Load saved settings
@@ -86,11 +90,21 @@ document.addEventListener("DOMContentLoaded", async () => {
       intervalMultiplier: s.intervalMultiplier || defaults.intervalMultiplier,
       maxNewWords: s.maxNewWords || defaults.maxNewWords,
       masteryThreshold: s.masteryThreshold || defaults.masteryThreshold,
-      disabledSites: s.disabledSites || []
+      disabledSites: s.disabledSites || [],
+      onboardingCompleted: s.onboardingCompleted ?? false,
+      learnerLevel: s.learnerLevel || null,
+      estimatedVocabulary: s.estimatedVocabulary || null,
+      levelSource: s.levelSource || null
     };
   }
 
   settings = migrateSettings(settings);
+
+  // 确保新字段存在（老版 settings 可能缺少这些字段）
+  if (settings.onboardingCompleted === undefined) settings.onboardingCompleted = false;
+  if (settings.learnerLevel === undefined) settings.learnerLevel = null;
+  if (settings.estimatedVocabulary === undefined) settings.estimatedVocabulary = null;
+  if (settings.levelSource === undefined) settings.levelSource = null;
 
   settings.providers = {
     openai: { ...defaultProviders.openai, ...settings.providers?.openai },
@@ -251,7 +265,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       intervalMultiplier: parseFloat($("intervalMultiplier").value),
       maxNewWords: parseInt($("maxNewWords").value),
       masteryThreshold: parseInt($("masteryThreshold").value),
-      disabledSites: latestDisabled
+      disabledSites: latestDisabled,
+      onboardingCompleted: settings.onboardingCompleted ?? false,
+      learnerLevel: settings.learnerLevel || null,
+      estimatedVocabulary: settings.estimatedVocabulary || null,
+      levelSource: settings.levelSource || null
     };
 
     await chrome.storage.local.set({ settings: newSettings });
@@ -379,6 +397,261 @@ document.addEventListener("DOMContentLoaded", async () => {
     settings.disabledSites = []; // 同步内存
     await updateDisabledSitesList();
   });
+
+  // ─── My Level Section ───────────────────────────────────
+
+  function updateLevelDisplay() {
+    const badge = $("levelBadge");
+    const label = $("levelLabel");
+    const vocab = $("vocabEstimate");
+    const banner = $("levelBanner");
+    const manualSelect = $("manualLevel");
+    const retakeBtn = $("retakeQuizBtn");
+    const isEnglish = (settings.sourceLang || "zh-CN") === "en";
+
+    // 显示/隐藏 banner（旧用户未完成 onboarding）
+    if (!settings.onboardingCompleted && stored && stored.settings) {
+      // 有旧数据但未完成 onboarding → 显示提示
+      banner?.classList.remove("hidden");
+    } else {
+      banner?.classList.add("hidden");
+    }
+
+    if (settings.learnerLevel) {
+      const level = settings.learnerLevel;
+      const levelNames = (typeof TRANSLENS_VOCAB !== 'undefined' && TRANSLENS_VOCAB.levelNames) || {
+        A1: "Beginner", A2: "Elementary", B1: "Intermediate", B2: "Upper-Intermediate", C1: "Advanced"
+      };
+
+      badge.textContent = level;
+      badge.className = "level-badge " + level;
+      label.textContent = levelNames[level] || level;
+
+      const vocabEst = settings.estimatedVocabulary;
+      if (vocabEst) {
+        vocab.textContent = `估算词汇量：~${vocabEst.toLocaleString()} 词`;
+      } else {
+        vocab.textContent = "";
+      }
+
+      manualSelect.value = level;
+    } else {
+      badge.textContent = "—";
+      badge.className = "level-badge";
+      label.textContent = "未设置";
+      vocab.textContent = "完成水平评估后可查看估算词汇量";
+      manualSelect.value = "";
+    }
+
+    // 英语显示重新测试按钮，非英语仅显示手动调整
+    if (retakeBtn) {
+      retakeBtn.style.display = isEnglish ? "" : "none";
+    }
+  }
+
+  // 开始校准（banner 按钮）
+  $("startCalibrationBtn")?.addEventListener("click", () => {
+    showOnboarding();
+  });
+
+  // 重新测试
+  $("retakeQuizBtn")?.addEventListener("click", () => {
+    showOnboarding();
+  });
+
+  // 手动设置等级
+  $("applyManualLevelBtn")?.addEventListener("click", async () => {
+    const level = $("manualLevel").value;
+    if (!level) return;
+
+    const vocabEstimates = (typeof TRANSLENS_VOCAB !== 'undefined' && TRANSLENS_VOCAB.vocabEstimates) || {
+      A1: 1000, A2: 2000, B1: 3500, B2: 5500, C1: 8000
+    };
+
+    settings.learnerLevel = level;
+    settings.estimatedVocabulary = vocabEstimates[level] || null;
+    settings.levelSource = "manual";
+    settings.onboardingCompleted = true;
+
+    await chrome.storage.local.set({ settings });
+    updateLevelDisplay();
+
+    $("applyManualLevelBtn").textContent = "已保存!";
+    setTimeout(() => { $("applyManualLevelBtn").textContent = "应用"; }, 1500);
+  });
+
+  // ─── Onboarding ──────────────────────────────────────────
+
+  let quiz = null;
+
+  function showOnboarding() {
+    const modal = $("onboardingModal");
+    modal?.classList.remove("hidden");
+    goToOnboardStep(1);
+  }
+
+  function hideOnboarding() {
+    const modal = $("onboardingModal");
+    modal?.classList.add("hidden");
+  }
+
+  function goToOnboardStep(step) {
+    document.querySelectorAll(".onboard-step").forEach(el => el.classList.add("hidden"));
+
+    const onboardLang = $("onboardSourceLang").value;
+
+    if (step === 1) {
+      $("onboardStep1")?.classList.remove("hidden");
+      // 恢复当前 sourceLang 选择
+      if (settings.sourceLang) {
+        $("onboardSourceLang").value = settings.sourceLang;
+      }
+    } else if (step === 2) {
+      if (onboardLang === "en") {
+        // 英语 → 自适应测试
+        $("onboardStep2Quiz")?.classList.remove("hidden");
+        startQuiz();
+      } else {
+        // 非英语 → 手动选择
+        $("onboardStep2Manual")?.classList.remove("hidden");
+      }
+    } else if (step === 3) {
+      $("onboardStep3")?.classList.remove("hidden");
+    }
+  }
+
+  function startQuiz() {
+    if (typeof AdaptiveVocabQuiz === 'undefined') {
+      alert("词汇测试模块未加载");
+      return;
+    }
+    quiz = new AdaptiveVocabQuiz();
+    quiz.start();
+    renderQuizQuestion();
+  }
+
+  function renderQuizQuestion() {
+    if (!quiz) return;
+
+    const state = quiz.getState();
+
+    if (state.finished) {
+      showQuizResult();
+      return;
+    }
+
+    const item = state.currentItem;
+    const total = state.totalQuestions;
+    const done = state.answeredCount;
+
+    $("quizWord").textContent = item.word;
+    $("quizRoundLabel").textContent = `Round ${state.currentRound} / 5`;
+    $("quizProgressFill").style.width = `${(done / total) * 100}%`;
+
+    // 假词不显示提示（避免暴露）
+    $("quizHint").textContent = item.isPseudoword ? "" : "";
+  }
+
+  function showQuizResult() {
+    const result = quiz.getResult();
+
+    const levelNames = (typeof TRANSLENS_VOCAB !== 'undefined' && TRANSLENS_VOCAB.levelNames) || {
+      A1: "Beginner", A2: "Elementary", B1: "Intermediate", B2: "Upper-Intermediate", C1: "Advanced"
+    };
+
+    $("resultBadge").textContent = result.level;
+    $("resultBadge").className = "result-badge " + result.level;
+    $("resultLevelName").textContent = levelNames[result.level] || result.level;
+    $("resultVocab").textContent = `Estimated Vocabulary: ~${result.estimatedVocabulary.toLocaleString()} words`;
+
+    const descriptions = {
+      A1: "你能理解并使用日常基本用语，满足基本需求。TransLens 将为你推荐 A2 级别的词汇。",
+      A2: "你能理解常用表达，进行简单的日常交流。TransLens 将为你推荐 B1 级别的词汇。",
+      B1: "你能理解工作、学校中常见话题的要点。TransLens 将为你推荐 B2 级别的词汇。",
+      B2: "你能理解复杂文章的主旨，能流利地与母语者交流。TransLens 将为你推荐 C1 级别的词汇。",
+      C1: "你能理解广泛的高难度文本，能自如地表达自己。TransLens 将为你推荐高级学术/专业词汇。"
+    };
+    $("resultDesc").textContent = descriptions[result.level] || "";
+
+    goToOnboardStep(3);
+  }
+
+  // Step 1 → Step 2
+  $("onboardNext1Btn")?.addEventListener("click", () => {
+    settings.sourceLang = $("onboardSourceLang").value;
+    goToOnboardStep(2);
+  });
+
+  // Quiz buttons
+  $("quizKnowBtn")?.addEventListener("click", () => {
+    if (!quiz) return;
+    quiz.answer(true);
+    renderQuizQuestion();
+  });
+
+  $("quizDontKnowBtn")?.addEventListener("click", () => {
+    if (!quiz) return;
+    quiz.answer(false);
+    renderQuizQuestion();
+  });
+
+  // Manual level next
+  $("onboardManualNextBtn")?.addEventListener("click", async () => {
+    const selected = document.querySelector('input[name="manualOnboardLevel"]:checked');
+    if (!selected) {
+      alert("请选择你的等级");
+      return;
+    }
+
+    const level = selected.value;
+    const vocabEstimates = (typeof TRANSLENS_VOCAB !== 'undefined' && TRANSLENS_VOCAB.vocabEstimates) || {
+      A1: 1000, A2: 2000, B1: 3500, B2: 5500, C1: 8000
+    };
+    const levelNames = (typeof TRANSLENS_VOCAB !== 'undefined' && TRANSLENS_VOCAB.levelNames) || {
+      A1: "Beginner", A2: "Elementary", B1: "Intermediate", B2: "Upper-Intermediate", C1: "Advanced"
+    };
+
+    settings.learnerLevel = level;
+    settings.estimatedVocabulary = vocabEstimates[level] || null;
+    settings.levelSource = "manual";
+    settings.onboardingCompleted = true;
+
+    $("resultBadge").textContent = level;
+    $("resultBadge").className = "result-badge " + level;
+    $("resultLevelName").textContent = levelNames[level] || level;
+    $("resultVocab").textContent = `Estimated Vocabulary: ~${(vocabEstimates[level] || 0).toLocaleString()} words`;
+    $("resultDesc").textContent = '你可以随时在"我的水平"中调整等级。';
+
+    goToOnboardStep(3);
+  });
+
+  // Finish onboarding
+  $("onboardFinishBtn")?.addEventListener("click", async () => {
+    // 如果是 quiz 完成，保存 quiz 结果
+    if (quiz && quiz.getResult) {
+      const result = quiz.getResult();
+      settings.learnerLevel = result.level;
+      settings.estimatedVocabulary = result.estimatedVocabulary;
+      settings.levelSource = "quiz";
+    }
+    settings.onboardingCompleted = true;
+
+    await chrome.storage.local.set({ settings });
+    hideOnboarding();
+    updateLevelDisplay();
+  });
+
+  // Check onboarding on load
+  updateLevelDisplay();
+  if (!settings.onboardingCompleted) {
+    if (stored && stored.settings) {
+      // 老用户（已有设置但未完成 onboarding）→ 只显示 banner，不强弹
+      // banner 在 updateLevelDisplay 中已处理
+    } else {
+      // 全新用户 → 显示 onboarding modal
+      showOnboarding();
+    }
+  }
 });
 
 // ─── Helpers ────────────────────────────────────────────
@@ -430,3 +703,204 @@ async function updateDisabledSitesList() {
     });
   }
 }
+
+// ─── Adaptive Vocabulary Quiz ───────────────────────────────
+// Reference: OpenVLT (adaptive algorithm) + LexTALE (pseudoword correction)
+
+class AdaptiveVocabQuiz {
+  constructor() {
+    this.levels = ["A1", "A2", "B1", "B2", "C1"];
+    this.realCounts = [4, 4, 3, 3, 2];     // 每级真词数
+    this.pseudoPerLevel = [1, 1, 1, 1, 1]; // 每级假词数
+    this.questions = [];   // [{ level, items: [{ word, isReal, isPseudoword }] }]
+    this.currentLevel = 0; // 当前测试到哪个 level index
+    this.currentItem = 0;  // 当前 level 内第几题
+    this.results = {};     // { A1: { realHits: 2, realTotal: 4 }, ... }
+    this.pseudoHits = 0;
+    this.pseudoTotal = 0;
+    this.finished = false;
+    this._finalResult = null;
+
+    this._loadWords();
+  }
+
+  _loadWords() {
+    // 从 TRANSLENS_VOCAB 加载词库；如果未加载则使用内置最小集
+    const enData = (typeof TRANSLENS_VOCAB !== 'undefined' && TRANSLENS_VOCAB.en) || {};
+    this.testWords = enData.testWords || {
+      A1: ["hello","water","food","house","car","book","name","day","big","come","girl","hand","love","man","red","run","school","time","walk","year"],
+      A2: ["kitchen","weather","yesterday","holiday","invite","decide","arrive","bottle","cheap","cloud","dance","during","enough","forest","garden","health"],
+      B1: ["opinion","environment","experience","imagine","suggest","advantage","behavior","communicate","complain","conclusion","describe","disappoint"],
+      B2: ["sophisticated","inevitable","controversy","substantial","accommodate","appreciate","circumstance","comprehensive","demonstrate","enthusiasm"],
+      C1: ["ubiquitous","ephemeral","pragmatic","juxtapose","ambiguous","benevolent","clandestine","dichotomy","eloquent","fastidious"]
+    };
+    this.pseudowords = enData.pseudowords || ["blafe","tegral","crompt","sivver","mellant","drasque","floning","praste","virent","clemp"];
+  }
+
+  _sampleRandom(arr, count) {
+    const copy = [...arr];
+    const result = [];
+    for (let i = 0; i < count && copy.length > 0; i++) {
+      const idx = Math.floor(Math.random() * copy.length);
+      result.push(copy.splice(idx, 1)[0]);
+    }
+    return result;
+  }
+
+  _shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  start() {
+    this.questions = [];
+    this.currentLevel = 0;
+    this.currentItem = 0;
+    this.results = {};
+    this.pseudoHits = 0;
+    this.pseudoTotal = 0;
+    this.finished = false;
+    this._finalResult = null;
+
+    for (let i = 0; i < this.levels.length; i++) {
+      const level = this.levels[i];
+      const realWords = this._sampleRandom(this.testWords[level] || [], this.realCounts[i]);
+      const pseudoWords = this._sampleRandom(this.pseudowords, this.pseudoPerLevel[i]);
+
+      const items = this._shuffle([
+        ...realWords.map(w => ({ word: w, isReal: true, isPseudoword: false })),
+        ...pseudoWords.map(w => ({ word: w, isReal: false, isPseudoword: true }))
+      ]);
+
+      this.questions.push({ level, items });
+      this.results[level] = { realHits: 0, realTotal: realWords.length };
+    }
+  }
+
+  answer(isKnown) {
+    if (this.finished) return;
+
+    const round = this.questions[this.currentLevel];
+    if (!round) { this.finished = true; return; }
+
+    const item = round.items[this.currentItem];
+    if (!item) { this._advanceLevel(); return; }
+
+    if (item.isPseudoword) {
+      this.pseudoTotal++;
+      if (isKnown) this.pseudoHits++;
+    } else {
+      if (isKnown) this.results[round.level].realHits++;
+    }
+
+    this.currentItem++;
+
+    // 当前轮次完成
+    if (this.currentItem >= round.items.length) {
+      this._advanceLevel();
+    }
+  }
+
+  _advanceLevel() {
+    const level = this.levels[this.currentLevel];
+    const r = this.results[level];
+    const accuracy = r.realTotal > 0 ? r.realHits / r.realTotal : 0;
+
+    if (accuracy >= 0.8) {
+      // 升级
+      if (this.currentLevel + 1 < this.levels.length) {
+        this.currentLevel++;
+        this.currentItem = 0;
+      } else {
+        this.finished = true;
+      }
+    } else if (accuracy >= 0.5) {
+      // 停止，当前级别即为结果
+      this.finished = true;
+    } else {
+      // 降级 (< 50%)
+      if (this.currentLevel > 0) {
+        this.currentLevel--;
+        this.finished = true;
+      } else {
+        this.finished = true;
+      }
+    }
+  }
+
+  getState() {
+    const totalQuestions = this.questions.reduce((sum, r) => sum + r.items.length, 0);
+    let answeredCount = 0;
+    for (let i = 0; i < this.currentLevel; i++) {
+      answeredCount += this.questions[i].items.length;
+    }
+    answeredCount += this.currentItem;
+
+    const currentRound = this.questions[this.currentLevel];
+    const currentItem = currentRound ? currentRound.items[this.currentItem] : null;
+
+    return {
+      finished: this.finished,
+      currentRound: this.currentLevel + 1,
+      totalRounds: this.levels.length,
+      currentItem: currentItem || { word: "", isReal: false, isPseudoword: false },
+      totalQuestions,
+      answeredCount
+    };
+  }
+
+  getResult() {
+    if (this._finalResult) return this._finalResult;
+
+    // 找到最终测试到的最高级别
+    // 如果 finished 是因为降级，结果 = currentLevel - 1 的级别
+    // 如果 finished 是因为 accuracy >= 80% 升级但已到顶，结果 = 最后级别
+    // 如果 finished 是因为 accuracy 50-80%，结果 = 当前级别
+    let finalLevelIndex = this.currentLevel;
+
+    // 如果最后一轮 accuracy < 50% 且不是第一轮，则降级
+    const lastTestedLevel = this.levels[finalLevelIndex];
+    const lastResult = this.results[lastTestedLevel];
+    if (lastResult && lastResult.realTotal > 0) {
+      const lastAcc = lastResult.realHits / lastResult.realTotal;
+      if (lastAcc < 0.5 && finalLevelIndex > 0) {
+        finalLevelIndex--;
+      }
+    }
+
+    const finalLevel = this.levels[finalLevelIndex];
+
+    // 词汇量估算 (LexTALE-style 假词校正)
+    const falseAlarmRate = this.pseudoTotal > 0 ? this.pseudoHits / this.pseudoTotal : 0;
+    const bandSizes = (typeof TRANSLENS_VOCAB !== 'undefined' && TRANSLENS_VOCAB.bandSizes) || {
+      A1: 1000, A2: 1000, B1: 1500, B2: 2000, C1: 2500
+    };
+
+    let totalVocab = 0;
+    // 对每个已测试的级别计算校正后的掌握比例
+    for (let i = 0; i <= finalLevelIndex; i++) {
+      const lvl = this.levels[i];
+      const r = this.results[lvl];
+      if (!r || r.realTotal === 0) continue;
+
+      const hitRate = r.realHits / r.realTotal;
+      const correctedRate = Math.max(0, hitRate - falseAlarmRate);
+      totalVocab += correctedRate * (bandSizes[lvl] || 1000);
+    }
+
+    // 对于高于 finalLevel 但低于 C1 的级别，如果用户在该级别没有测试到，
+    // 不计入（因为已经跳过了）
+
+    this._finalResult = {
+      level: finalLevel,
+      estimatedVocabulary: Math.round(totalVocab)
+    };
+
+    return this._finalResult;
+  }
+}
+

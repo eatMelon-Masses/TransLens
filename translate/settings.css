@@ -200,3 +200,293 @@ input[type="range"] {
   margin-top: 16px;
   flex-wrap: wrap;
 }
+
+/* ─── My Level Section ─────────────────────────────── */
+
+.level-banner {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: #1e40af;
+}
+
+.level-banner .btn-sm {
+  padding: 6px 14px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.level-display {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: #f9fafb;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 16px;
+}
+
+.level-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  background: #9ca3af;
+  flex-shrink: 0;
+}
+
+.level-badge.A1 { background: #22c55e; }
+.level-badge.A2 { background: #3b82f6; }
+.level-badge.B1 { background: #eab308; color: #422006; }
+.level-badge.B2 { background: #f97316; }
+.level-badge.C1 { background: #ef4444; }
+
+.level-info { flex: 1; }
+.level-label { font-size: 16px; font-weight: 600; color: #111827; }
+.level-detail { font-size: 13px; color: #6b7280; margin-top: 2px; }
+
+.level-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.btn-sm { padding: 6px 12px; font-size: 13px; }
+
+.manual-adjust {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.manual-adjust label {
+  font-size: 13px;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.manual-adjust select {
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  flex: 1;
+  min-width: 200px;
+}
+
+/* ─── Onboarding Modal ─────────────────────────────── */
+
+.onboarding-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: 20px;
+}
+
+.onboarding-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 520px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+
+.onboard-step { animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+.onboard-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.onboard-header h2 {
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  border: none;
+  padding: 0;
+}
+
+.onboard-header p {
+  font-size: 14px;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+/* ─── Quiz ─────────────────────────────────────────── */
+
+.quiz-container { text-align: center; }
+
+.quiz-progress {
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+
+.quiz-progress-fill {
+  height: 100%;
+  background: #3b82f6;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.quiz-round-label {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.quiz-word {
+  font-size: 40px;
+  font-weight: 700;
+  color: #111827;
+  margin: 16px 0 4px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.quiz-hint {
+  font-size: 13px;
+  color: #9ca3af;
+  margin-bottom: 28px;
+  min-height: 18px;
+}
+
+.quiz-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.btn-quiz-know {
+  background: #22c55e;
+  color: #fff;
+  padding: 12px 32px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 10px;
+  min-width: 140px;
+}
+
+.btn-quiz-know:hover { background: #16a34a; }
+
+.btn-quiz-dontknow {
+  background: #f3f4f6;
+  color: #374151;
+  padding: 12px 32px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 10px;
+  min-width: 140px;
+}
+
+.btn-quiz-dontknow:hover { background: #e5e7eb; }
+
+/* ─── Manual Level Grid ────────────────────────────── */
+
+.manual-level-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.manual-level-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.manual-level-card:hover { border-color: #93c5fd; }
+.manual-level-card:has(input:checked) { border-color: #3b82f6; background: #eff6ff; }
+
+.manual-level-card input { display: none; }
+
+.ml-label {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.manual-level-card[data-value="A1"] .ml-label { background: #22c55e; }
+.manual-level-card[data-value="A2"] .ml-label { background: #3b82f6; }
+.manual-level-card[data-value="B1"] .ml-label { background: #eab308; color: #422006; }
+.manual-level-card[data-value="B2"] .ml-label { background: #f97316; }
+.manual-level-card[data-value="C1"] .ml-label { background: #ef4444; }
+
+.ml-name { font-weight: 600; font-size: 14px; }
+.ml-desc { font-size: 12px; color: #6b7280; margin-top: 2px; }
+
+/* ─── Result ───────────────────────────────────────── */
+
+.result-container { text-align: center; }
+
+.result-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+  background: #3b82f6;
+  margin-bottom: 12px;
+}
+
+.result-badge.A1 { background: #22c55e; }
+.result-badge.A2 { background: #3b82f6; }
+.result-badge.B1 { background: #eab308; color: #422006; }
+.result-badge.B2 { background: #f97316; }
+.result-badge.C1 { background: #ef4444; }
+
+.result-level-name { font-size: 20px; font-weight: 600; color: #111827; }
+
+.result-vocab {
+  font-size: 14px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.result-desc {
+  font-size: 13px;
+  color: #9ca3af;
+  margin-top: 12px;
+  line-height: 1.6;
+}

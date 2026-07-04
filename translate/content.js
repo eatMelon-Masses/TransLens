@@ -37,6 +37,7 @@
   // 存储 source pattern 字符串，getLangPattern 每次创建新 RegExp 实例
 
   const LANG_PATTERNS = {
+    "en": { name: "English", source: "[a-zA-Z]{2,}" },
     "zh-CN": { name: "Chinese Simplified", charClass: "[\\u4e00-\\u9fff]", defaultMaxLen: 6 },
     "zh-TW": { name: "Chinese Traditional", charClass: "[\\u4e00-\\u9fff\\u3400-\\u4dbf]", defaultMaxLen: 6 },
     ja: { name: "Japanese", charClass: "[\\u3040-\\u309f\\u30a0-\\u30ff\\u4e00-\\u9fff\\u3400-\\u4dbf]", defaultMaxLen: 6 },
@@ -285,10 +286,29 @@
 
   // ─── Word Selection ────────────────────────────────────
 
+  function levelToNum(level) {
+    return { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5 }[level] || 0;
+  }
+
+  function getWordLevel(word) {
+    if (config.sourceLang !== "en" || typeof TRANSLENS_VOCAB === "undefined") return null;
+    const enData = TRANSLENS_VOCAB.en;
+    if (!enData || !enData.levelWords) return null;
+    const lower = word.toLowerCase();
+    for (const level of ["A1", "A2", "B1", "B2", "C1"]) {
+      if (enData.levelWords[level] && enData.levelWords[level].includes(lower)) {
+        return level;
+      }
+    }
+    return null; // 未知词 → 默认按中高难度处理
+  }
+
   function selectWordsForTranslation(textItems) {
     const ratio = (config.selectRatio || 40) / 100;
     const maxNew = config.maxNewWords || 50;
     const maxPerPage = clamp(Number(config.maxTranslationsPerPage || 30), 1, 100);
+    const learnerLevel = config.learnerLevel;
+    const learnerNum = levelToNum(learnerLevel);
     const candidates = [];
 
     for (const item of textItems) {
@@ -297,15 +317,35 @@
         if (state === "mastered" || state === "not-due") continue;
         if (state === "new" && stats.newToday >= maxNew) continue;
 
+        // 水平过滤：仅对新词生效，到期复习词不受影响
+        if (learnerLevel && state === "new") {
+          const wordLevel = getWordLevel(word);
+          if (wordLevel) {
+            const diff = levelToNum(wordLevel) - learnerNum;
+            if (diff <= 0) continue; // 低于等于用户水平 → 跳过
+          }
+          // 未知词（wordLevel === null）→ 不跳过，按中高难度处理
+        }
+
         candidates.push({ item, word, state });
       }
     }
 
-    // 优先复习到期的词，然后是新词
+    // 优先级排序
     candidates.sort((a, b) => {
+      // 1. 到期复习的词最优先
       if (a.state === "due" && b.state !== "due") return -1;
       if (a.state !== "due" && b.state === "due") return 1;
-      return Math.random() - 0.5; // 同优先级随机
+      // 2. 高于用户水平 1 档的词优先（最近发展区 i+1）
+      if (learnerLevel) {
+        const diffA = levelToNum(getWordLevel(a.word)) - learnerNum;
+        const diffB = levelToNum(getWordLevel(b.word)) - learnerNum;
+        const preferA = diffA === 1 ? 1 : 0;
+        const preferB = diffB === 1 ? 1 : 0;
+        if (preferA !== preferB) return preferB - preferA;
+      }
+      // 3. 同优先级随机
+      return Math.random() - 0.5;
     });
 
     // 按选择比例选取

@@ -35,8 +35,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Languages
   const langNames = {
-    "zh-CN": "中文", "zh-TW": "繁體中文", ja: "日本語", ko: "한국어",
-    en: "English", fr: "Français", de: "Deutsch", es: "Español",
+    "en": "English", "zh-CN": "中文", "zh-TW": "繁體中文", ja: "日本語", ko: "한국어",
+    fr: "Français", de: "Deutsch", es: "Español", ru: "Русский", ar: "العربية",
   };
   const src = langNames[s.sourceLang] || s.sourceLang || "—";
   const tgt = langNames[s.targetLang] || s.targetLang || "—";
@@ -44,6 +44,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Word count
   document.getElementById("wordCount").textContent = words.length;
+
+  // Level display
+  if (s.learnerLevel) {
+    const levelRow = document.getElementById("levelRow");
+    const levelDisp = document.getElementById("levelDisplay");
+    levelRow.style.display = "flex";
+    levelDisp.textContent = s.learnerLevel + (s.estimatedVocabulary ? ` (~${s.estimatedVocabulary.toLocaleString()})` : "");
+  }
 
   // Toggle Site Button
   const toggleBtn = document.getElementById("toggleSite");
