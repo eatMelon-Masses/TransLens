@@ -1,6 +1,32 @@
 // Background Service Worker — 处理所有 AI API 调用
 // 避免 content script 直接发起请求时的 CORS 限制
 
+// ─── 右键菜单 ──────────────────────────────────────────
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.create({
+    id: "translate-selection",
+    title: "翻译选中文本",
+    contexts: ["selection"]
+  });
+});
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === "translate-selection") {
+    chrome.tabs.sendMessage(tab.id, { type: "TRANSLATE_CONTEXT" });
+  }
+});
+
+// ─── 快捷键 ────────────────────────────────────────────
+
+chrome.commands.onCommand.addListener((command, tab) => {
+  if (command === "translate-selection") {
+    chrome.tabs.sendMessage(tab.id, { type: "TRANSLATE_HOTKEY" });
+  }
+});
+
+// ─── 翻译消息处理 ──────────────────────────────────────
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "TRANSLATE") {
     handleTranslate(message.payload)
@@ -18,6 +44,8 @@ function isUsableTranslation(value) {
   const text = normalizeTextField(value);
   if (!text) return false;
   if (text.length > 80) return false;
+  // 超过 5 个英文单词，大概率包含了上下文（单个中文词不应翻译成整句）
+  if (text.split(/\s+/).length > 5) return false;
   if ((text.startsWith("{") && text.endsWith("}")) || (text.startsWith("[") && text.endsWith("]"))) {
     return false;
   }
@@ -209,20 +237,21 @@ async function handleTranslate({ sentence, targetWord, sourceLang, targetLang, s
 
   // 让 AI 返回翻译和翻译结果的发音（JSON 格式）
   // phonetic 始终对应 translation，而不是原文 targetWord，避免中文源词被返回拼音。
-  const prompt = `Translate the word "${targetWord}" in the following ${sourceLang} sentence to ${targetLang}.
-Return ONLY a JSON object with this format: {"translation": "translated meaning", "phonetic": "/pronunciation of translated meaning/"}
+  const prompt = `Translate ONLY the target word to ${targetLang}. Return ONLY a JSON object: {"translation": "...", "phonetic": "/.../"}
 
-Translate ONLY the target word or phrase, not the full sentence.
-The translation field MUST be a concise word or short phrase, no more than 6 words.
+Target word: ${targetWord}
+Sentence context (for meaning disambiguation ONLY — do NOT translate these): ${sentence}
 
-Rules for phonetic:
-- Phonetic MUST be for the translation in ${targetLang}, not for the original ${sourceLang} word.
-- If ${targetLang} is English, use English IPA, for example government -> /ˈɡʌvənmənt/.
-- If the translation is a short phrase, provide readable IPA for the phrase.
-- Do not return pinyin unless ${targetLang} is Chinese.
-- Keep phonetic between slashes. If unsure, use an empty string.
+STRICT RULES (violation = wrong output):
+1. Translate ONLY "${targetWord}" — absolutely nothing else.
+2. If the sentence contains "分区调整" and target word is "调整", return "adjustment", NEVER "partition adjustment".
+3. If the sentence contains "更加方便" and target word is "更加", return "more", NEVER "more convenient".
+4. The translation must be 1 word (preferred) or at most 3 words.
 
-Sentence: ${sentence}`;
+Phonetic rules:
+- Phonetic is for the ${targetLang} translation, using ${targetLang} IPA (e.g. government -> /ˈɡʌvənmənt/).
+- Do NOT return pinyin unless ${targetLang} is Chinese.
+- Keep phonetic between slashes. If unsure, use empty string.`;
 
   switch (provider) {
     case "openai":
@@ -232,11 +261,10 @@ Sentence: ${sentence}`;
     case "custom": {
       // thinking 模型（deepseek-v4-flash 等）推理过程较长，精简 prompt 以减少 token 消耗
       const compactPrompt =
-        `Translate "${targetWord}" (${sourceLang}) to ${targetLang} in this sentence:\n` +
-        `"${sentence}"\n` +
-        `Return JSON only: {"translation": "...", "phonetic": "/IPA of translation/"}\n` +
-        `Translate only the target word or phrase. Do not translate the full sentence. ` +
-        `The translation must be concise, no more than 6 words.`;
+        `Translate ONLY "${targetWord}" to ${targetLang}. Context: "${sentence}"\n` +
+        `Return JSON: {"translation": "...", "phonetic": "/IPA/"}\n` +
+        `STRICT: translate only the target word "${targetWord}", NOT surrounding words. ` +
+        `Max 3 words in translation.`;
       return callCustom(compactPrompt, apiKey, model, customUrl);
     }
     default:

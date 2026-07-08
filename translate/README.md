@@ -103,6 +103,12 @@ This creates `TransLens-2.2.zip` ready for upload.
 
 Issues and pull requests are welcome!
 
+## Acknowledgment
+
+This project was inspired by [golangboy/TransLens](https://github.com/golangboy/TransLens), a Chrome extension for immersive language learning.
+The current version is a deep rewrite (pure front-end, SRS, CEFR grading, multi-provider AI, etc.) — the original code is not used.
+The original project is MIT licensed. Thank you for the inspiration.
+
 ## License
 
 MIT License - See LICENSE file for details

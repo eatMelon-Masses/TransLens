@@ -1,19 +1,20 @@
 # TransLens Privacy Policy
 
-**Effective Date:** July 3, 2026
+**Effective Date:** July 8, 2026
 
 ## 1. Overview
 
-TransLens is a Chrome extension that annotates language-learning words on web pages and stores spaced-repetition learning progress locally in Chrome.
+TransLens is a Chrome extension that annotates language-learning words on web pages and provides select-to-translate functionality, storing spaced-repetition learning progress locally in Chrome.
 
 ## 2. Data Handled by the Extension
 
 TransLens handles the following data to provide its core functionality:
 
-- **Web page text snippets:** A sentence or short surrounding text and the selected word are used to request a translation.
+- **Web page text snippets:** A sentence or short surrounding text and the selected word are used to request a translation. For select-to-translate, user-selected text and its surrounding context are sent for translation.
 - **Settings:** AI provider, model, language preferences, display preferences, disabled sites, and related configuration.
 - **API credentials:** API keys entered by the user for OpenAI, Anthropic, or a custom OpenAI-compatible endpoint.
-- **Learning data:** Word history, translations, phonetics, review intervals, mastery status, source/target language per word, and timestamps.
+- **Learning data:** Word history, translations, phonetics, review intervals, mastery status, source/target language per word, context sentences, add source (manual/auto), and timestamps.
+- **Translation cache:** Cached results from user-initiated select-to-translate lookups, stored separately from learning data.
 
 ## 3. Local Storage
 
@@ -41,9 +42,10 @@ TransLens does not include analytics SDKs, tracking cookies, advertising code, a
 
 TransLens requests these permissions:
 
-- `storage`: Saves settings, API credentials, disabled sites, and learning progress locally.
+- `storage`: Saves settings, API credentials, disabled sites, learning progress, and translation cache locally.
 - `activeTab`: Reads the current tab URL after the user opens the popup, so the user can disable or enable TransLens for the current site.
-- Host access to `http://*/*` and `https://*/*` through the content script: Reads page text and injects inline vocabulary annotations.
+- `contextMenus`: Adds a "翻译选中文本" right-click menu item to translate user-selected text.
+- Host access to `http://*/*` and `https://*/*` through the content script: Reads page text for auto-annotation and user-selected text for manual translation. Injects inline vocabulary annotations and a floating translation UI (Shadow DOM-isolated).
 - Host permissions for `https://api.openai.com/*`, `https://api.anthropic.com/*`, `http://localhost/*`, and `http://127.0.0.1/*`: Sends translation requests to built-in and local AI endpoints.
 - Optional host permissions for custom `http://` and `https://` endpoints: Requested only when the user configures a custom remote endpoint.
 

@@ -20,6 +20,7 @@ FILES=(
   "manifest.json"
   "background.js"
   "content.js"
+  "vocab-data.js"
   "popup.html"
   "popup.js"
   "settings.html"

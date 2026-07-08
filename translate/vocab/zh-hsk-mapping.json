@@ -1,0 +1,25 @@
+{
+  "description": "HSK 等级到 CEFR 的映射规则。修改此文件可调整每个 HSK 级别对应的 CEFR 等级。生成 zh-level-words.json 时依据此映射。",
+  "hsk2_to_cefr": {
+    "old-1": "A1",
+    "old-2": "A2",
+    "old-3": "B1",
+    "old-4": "B2",
+    "old-5": "B2",
+    "old-6": "C1"
+  },
+  "hsk3_to_cefr": {
+    "new-1": "A1",
+    "new-2": "A2",
+    "new-3": "B1",
+    "new-4": "B2",
+    "new-5": "B2",
+    "new-6": "C1",
+    "new-7": "C1"
+  },
+  "references": [
+    "https://www.thechairmansbao.com/blog/hsk-actfl-cerf-chart/",
+    "https://resources.allsetlearning.com/chinese/grammar/HSK_Levels_and_CEFR_Levels",
+    "https://github.com/drkameleon/complete-hsk-vocabulary"
+  ]
+}

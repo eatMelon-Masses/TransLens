@@ -112,16 +112,9 @@
   }
 
   function getTranslationContext(text, targetWord) {
-    const lang = config.sourceLang || "zh-CN";
-    const entry = getLanguageEntry();
-    if (lang === "custom" || !entry.charClass) return text;
-
-    const pattern = getLanguageCharPattern();
-    for (const match of text.matchAll(pattern)) {
-      const run = match[0];
-      if (run.includes(targetWord)) return run;
-    }
-
+    // 直接返回原文，不做截取。
+    // 原文给 AI 完整的句子上下文用于词义消歧，同时 prompt 已强制要求只翻译 targetWord。
+    // 之前截取 CJK 连续段（如 "分区调整和"）反而会把相邻词带入翻译结果。
     return text;
   }
 
@@ -290,17 +283,38 @@
     return { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5 }[level] || 0;
   }
 
+  // Map sourceLang to TRANSLENS_VOCAB key
+  // "en" → "en", "zh-CN"/"zh-TW" → "zh", others → null (no vocab data)
+  function getVocabLang(sourceLang) {
+    const map = { "en": "en", "zh-CN": "zh", "zh-TW": "zh" };
+    return map[sourceLang] || null;
+  }
+
+  // Cache: word → CEFR level Map, built lazily per language
+  const _wordLevelCache = {};
+
   function getWordLevel(word) {
-    if (config.sourceLang !== "en" || typeof TRANSLENS_VOCAB === "undefined") return null;
-    const enData = TRANSLENS_VOCAB.en;
-    if (!enData || !enData.levelWords) return null;
-    const lower = word.toLowerCase();
-    for (const level of ["A1", "A2", "B1", "B2", "C1"]) {
-      if (enData.levelWords[level] && enData.levelWords[level].includes(lower)) {
-        return level;
+    const vocabLang = getVocabLang(config.sourceLang);
+    if (!vocabLang || typeof TRANSLENS_VOCAB === "undefined") return null;
+
+    const langData = TRANSLENS_VOCAB[vocabLang];
+    if (!langData || !langData.levelWords) return null;
+
+    // Build cache on first access (O(n) once, then O(1) per lookup)
+    if (!_wordLevelCache[vocabLang]) {
+      const m = new Map();
+      for (const level of ["A1", "A2", "B1", "B2", "C1"]) {
+        const words = langData.levelWords[level];
+        if (words) {
+          for (const w of words) m.set(w, level);
+        }
       }
+      _wordLevelCache[vocabLang] = m;
     }
-    return null; // 未知词 → 默认按中高难度处理
+
+    // English: case-insensitive; Chinese: exact match
+    const lookupWord = vocabLang === "en" ? word.toLowerCase() : word;
+    return _wordLevelCache[vocabLang].get(lookupWord) || null;
   }
 
   function selectWordsForTranslation(textItems) {
@@ -428,22 +442,32 @@
     const safeTranslation = escapeHTML(translation);
     const safePhonetic = escapeHTML(phonetic);
 
+    // 查找该词的 CEFR 等级
+    const wordLevel = getWordLevel(targetWord);
+    const levelColors = { A1: "#22C55E", A2: "#84CC16", B1: "#EAB308", B2: "#F97316", C1: "#EF4444" };
+    const levelColor = levelColors[wordLevel] || "#6B7280";
+    const levelBadge = wordLevel
+      ? `<span style="display:inline-block;background:${levelColor};color:#fff;font-size:0.78em;font-weight:700;padding:1px 5px;border-radius:3px;margin-right:5px;letter-spacing:0.5px;">${wordLevel}</span>`
+      : "";
+
     // 创建精美的标注样式（参考 Apple 词典 + 微信读书）
-    // 底部虚线 + 行内翻译，Hover 显示音标 tooltip
+    // 底部虚线 + 行内翻译，Hover 显示等级 + 音标 tooltip + 已掌握按钮
     const annotationHTML = `<span class="translens-annotation"
       ${MARKER}="true"
+      data-word="${safeWord}"
       style="
         border-bottom: 2px dotted #4A90D9;
         border-bottom-color: rgba(74,144,217,0.6);
         padding-bottom: 1px;
-        margin-bottom: -1px;
+        padding-top: 8px;
         cursor: help;
         position: relative;
         display: inline-block;
         line-height: 1.35;
       "
       data-translation="${safeTranslation}"
-      data-phonetic="${safePhonetic}">
+      data-phonetic="${safePhonetic}"
+      data-level="${wordLevel || ""}">
       ${safeWord}
       <span class="translens-translation"
         style="
@@ -460,26 +484,30 @@
           white-space: nowrap;
           vertical-align: baseline;
         ">${safeTranslation}</span>
-      ${phonetic ? `<span class="translens-phonetic-popup"
+      <span class="translens-phonetic-popup"
         style="
           display: none;
           position: absolute;
-          bottom: calc(100% + 5px);
+          bottom: 100%;
           left: 50%;
           transform: translateX(-50%);
           background: #1F2937;
           color: #F9FAFB;
-          padding: 5px 9px;
+          padding: 6px 10px;
           border-radius: 6px;
           font-size: ${phoneticFontSize};
-          line-height: 1.25;
+          line-height: 1.4;
           white-space: normal;
-          max-width: min(280px, calc(100vw - 24px));
+          max-width: min(300px, calc(100vw - 24px));
           z-index: 10000;
           box-shadow: 0 2px 8px rgba(0,0,0,0.15);
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Arial Unicode MS', 'Lucida Sans Unicode', sans-serif;
           text-align: center;
-        ">${safePhonetic}</span>` : ''}
+        ">${levelBadge}${safePhonetic ? `<span style="opacity:0.85">${safePhonetic}</span>` : ""}<br><span class="translens-know-btn" data-word="${safeWord}"
+            style="display:inline-block;margin-top:3px;font-size:0.75em;color:rgba(255,255,255,0.4);cursor:pointer;transition:color 0.15s;user-select:none;"
+            onmousedown="event.preventDefault(); event.stopPropagation();"
+            onmouseover="this.style.color='rgba(255,255,255,0.8)'"
+            onmouseout="this.style.color='rgba(255,255,255,0.4)'">&#10003; 已掌握</span></span>
     </span>`;
 
     const currentHTML = textData.parent.innerHTML;
@@ -680,13 +708,406 @@
     document.addEventListener("mouseout", (e) => {
       const annotation = e.target.closest(".translens-annotation");
       if (annotation) {
+        // 仅当鼠标真正离开 annotation 时才隐藏（移动到子元素如 popup 时不隐藏）
+        if (annotation.contains(e.relatedTarget)) return;
         const phoneticPopup = annotation.querySelector(".translens-phonetic-popup");
         if (phoneticPopup) {
           phoneticPopup.style.display = "none";
         }
       }
     });
+
+    // 点击"已掌握"按钮 → 标记单词为已掌握，不再出现在闪卡中
+    // 用 mousedown 而非 click，因为按钮上的 onmousedown preventDefault 会阻止 click 生成（防止父级 <a> 跳转）
+    document.addEventListener("mousedown", (e) => {
+      const btn = e.target.closest(".translens-know-btn");
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const word = btn.dataset.word;
+      if (!word) return;
+
+      // 强制设为已掌握：reviewCount 达到阈值
+      let entry = getWordState(word);
+      if (!entry) entry = createWordEntry(word);
+      entry.reviewCount = config.masteryThreshold || 6;
+      entry.repetitions = Math.max(entry.repetitions, 3);
+      entry.interval = Math.max(entry.interval, 30);
+      entry.nextReview = Date.now() + entry.interval * 86400000;
+      entry.lastSeen = Date.now();
+      saveSRS();
+
+      // 视觉反馈：移除虚线下划线和翻译标签，显示"已掌握"
+      const annotation = btn.closest(".translens-annotation");
+      if (annotation) {
+        annotation.style.borderBottom = "none";
+        annotation.style.cursor = "default";
+        const translationEl = annotation.querySelector(".translens-translation");
+        if (translationEl) {
+          translationEl.innerHTML = '<span style="color:#22C55E;font-size:0.85em;">✓ 已掌握</span>';
+          translationEl.style.background = "rgba(34,197,94,0.08)";
+        }
+        const popup = annotation.querySelector(".translens-phonetic-popup");
+        if (popup) popup.style.display = "none";
+      }
+    });
   }
+
+  // ─── Select-to-Translate (划词翻译) ──────────────────
+
+  const SELECT_ICON_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>';
+
+  // ── Shadow DOM host ──
+  const _slHost = document.createElement("div");
+  _slHost.id = "translens-select-host";
+  const _slRoot = _slHost.attachShadow({ mode: "open" });
+
+  _slRoot.innerHTML = `
+    <style>
+      :host { all: initial; position: fixed; top: 0; left: 0; width: 0; height: 0; z-index: 2147483647; pointer-events: none; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      #tl-float-btn {
+        display: none; position: fixed; z-index: 2147483647;
+        width: 32px; height: 32px; border-radius: 50%;
+        background: #3b82f6; color: #fff; border: none; cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        align-items: center; justify-content: center;
+        pointer-events: auto; transition: transform 0.12s, background 0.12s;
+      }
+      #tl-float-btn:hover { background: #2563eb; transform: scale(1.1); }
+
+      #tl-popup {
+        display: none; position: fixed; z-index: 2147483646;
+        background: #fff; border-radius: 10px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.16);
+        padding: 16px; min-width: 240px; max-width: 360px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 14px; color: #111827;
+        pointer-events: auto; line-height: 1.5;
+      }
+      #tl-popup .tl-word { font-size: 18px; font-weight: 700; margin-bottom: 2px; word-break: break-all; }
+      #tl-popup .tl-phonetic { font-size: 12px; color: #9ca3af; margin-bottom: 8px; }
+      #tl-popup .tl-translation { font-size: 15px; color: #1f2937; margin-bottom: 4px; font-weight: 600; }
+      #tl-popup .tl-context { font-size: 11px; color: #9ca3af; margin-bottom: 10px; font-style: italic; max-height: 2.4em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #tl-popup .tl-loading { color: #9ca3af; text-align: center; padding: 12px 0; }
+      #tl-popup .tl-error { color: #ef4444; text-align: center; padding: 8px 0; font-size: 13px; }
+      #tl-popup .tl-actions { display: flex; align-items: center; gap: 8px; }
+      #tl-popup .tl-add-btn {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 5px 12px; border-radius: 6px; border: 1px solid #d1d5db;
+        background: #f9fafb; color: #374151; font-size: 12px; cursor: pointer;
+        transition: all 0.15s; font-family: inherit;
+      }
+      #tl-popup .tl-add-btn:hover { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+      #tl-popup .tl-add-btn.added { background: #f0fdf4; border-color: #86efac; color: #16a34a; cursor: default; }
+      #tl-popup .tl-add-btn.mastered { color: #9ca3af; cursor: default; border-color: #e5e7eb; }
+      #tl-popup .tl-level {
+        display: inline-block; font-size: 11px; font-weight: 700;
+        padding: 1px 5px; border-radius: 3px; color: #fff;
+        margin-left: 6px; vertical-align: middle; letter-spacing: 0.5px;
+      }
+
+      #tl-toast {
+        display: none; position: fixed; z-index: 2147483647;
+        bottom: 40px; left: 50%; transform: translateX(-50%);
+        background: #1f2937; color: #f9fafb; padding: 10px 20px;
+        border-radius: 8px; font-size: 14px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        pointer-events: none; white-space: nowrap;
+        animation: tl-toast-in 0.3s ease;
+      }
+      @keyframes tl-toast-in { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+    </style>
+    <button id="tl-float-btn">${SELECT_ICON_SVG}</button>
+    <div id="tl-popup"></div>
+    <div id="tl-toast"></div>
+  `;
+  document.documentElement.appendChild(_slHost);
+
+  const _floatBtn = _slRoot.getElementById("tl-float-btn");
+  const _popup = _slRoot.getElementById("tl-popup");
+  const _toast = _slRoot.getElementById("tl-toast");
+
+  // ── State ──
+  let _selText = "";
+  let _selContext = "";
+  let _selRect = null;
+  let _currentWord = "";
+  let _toastTimer = null;
+  let _slCacheLoaded = false;
+  const _slCache = {};  // 划词翻译缓存（独立于 SRS，不影响自动标注）
+  const LEVEL_COLORS = { A1: "#22C55E", A2: "#84CC16", B1: "#EAB308", B2: "#F97316", C1: "#EF4444" };
+
+  // ── Helpers ──
+
+  function _getSelectionContext(selection) {
+    // 向上查找最近的块级元素作为上下文句子
+    let node = selection.anchorNode;
+    while (node && node !== document.body) {
+      if (node.nodeType === 1) {
+        const tag = node.tagName.toLowerCase();
+        if (["p", "div", "li", "td", "th", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "article", "section", "span"].includes(tag)) {
+          const text = (node.textContent || "").trim();
+          if (text.length >= 2 && text.length <= 500) return text;
+        }
+      }
+      node = node.parentNode;
+    }
+    return _selText;
+  }
+
+  function _showToast(msg) {
+    _toast.textContent = msg;
+    _toast.style.display = "block";
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => { _toast.style.display = "none"; }, 2000);
+  }
+
+  function _hideAll() {
+    _floatBtn.style.display = "none";
+    _popup.style.display = "none";
+  }
+
+  function _positionAt(el, rect) {
+    // 定位在选区上方居中，放不下则放在下方
+    el.style.display = "block";
+    const ew = el.offsetWidth || 32;
+    const eh = el.offsetHeight || 32;
+    let top = rect.top - eh - 6;
+    let left = rect.left + rect.width / 2 - ew / 2;
+
+    if (top < 4) top = rect.bottom + 6;
+    left = Math.max(4, Math.min(left, window.innerWidth - ew - 4));
+    top = Math.max(4, top);
+
+    el.style.top = top + "px";
+    el.style.left = left + "px";
+  }
+
+  function _positionPopup(rect) {
+    _popup.style.display = "block";
+    const pw = _popup.offsetWidth || 260;
+    const ph = _popup.offsetHeight || 120;
+    let top = rect.top - ph - 8;
+    let left = rect.left + rect.width / 2 - pw / 2;
+
+    if (top < 4) top = rect.bottom + 8;
+    left = Math.max(4, Math.min(left, window.innerWidth - pw - 4));
+    top = Math.max(4, top);
+
+    _popup.style.top = top + "px";
+    _popup.style.left = left + "px";
+  }
+
+  // ── Selection Detection ──
+
+  function _handleMouseUp(e) {
+    // 忽略来自 Shadow DOM 内部的点击
+    if (_slHost.contains(e.target)) return;
+
+    // 延迟一帧，让浏览器完成选区更新
+    requestAnimationFrame(() => {
+      const sel = window.getSelection();
+      const text = (sel && sel.toString()) ? sel.toString().trim() : "";
+
+      if (!text || text.length < 1 || text.length > 100) {
+        _hideAll();
+        return;
+      }
+
+      try {
+        const range = sel.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        if (!rect || (rect.width === 0 && rect.height === 0)) {
+          _hideAll();
+          return;
+        }
+
+        _selText = text;
+        _selContext = _getSelectionContext(sel);
+        _selRect = rect;
+
+        // 显示浮动按钮
+        _floatBtn.style.display = "flex";
+        _positionAt(_floatBtn, rect);
+      } catch (_) {
+        _hideAll();
+      }
+    });
+  }
+
+  function _handleMouseDown(e) {
+    // 点击 Shadow DOM 外部 → 关闭浮窗
+    if (_slHost.contains(e.target)) return;
+    _hideAll();
+  }
+
+  // ── Translation Popup ──
+
+  async function _loadSLCache() {
+    if (_slCacheLoaded) return;
+    const { translensSLCache } = await chrome.storage.local.get("translensSLCache");
+    Object.assign(_slCache, translensSLCache || {});
+    _slCacheLoaded = true;
+  }
+
+  async function _saveSLCache() {
+    await chrome.storage.local.set({ translensSLCache: _slCache });
+  }
+
+  async function _translateAndShow() {
+    if (!_selText || !_selRect) return;
+
+    _hideAll();
+    _currentWord = _selText;
+
+    // 确保配置已加载
+    if (!config.provider) await loadConfig();
+    await _loadSLCache();
+
+    // 先显示加载状态
+    _popup.innerHTML = '<div class="tl-loading">翻译中...</div>';
+    _positionPopup(_selRect);
+
+    // 1. 检查划词翻译缓存
+    if (_slCache[_currentWord]) {
+      const c = _slCache[_currentWord];
+      _renderPopup(_currentWord, c.translation, c.phonetic, _selContext);
+      return;
+    }
+
+    // 2. 检查 SRS 缓存（来自自动标注的翻译）
+    const cached = getCachedTranslation(_currentWord);
+    if (cached) {
+      _slCache[_currentWord] = { translation: cached.translation, phonetic: cached.phonetic };
+      _saveSLCache();
+      _renderPopup(_currentWord, cached.translation, cached.phonetic, _selContext);
+      return;
+    }
+
+    // 3. 调 API 翻译
+    const result = await translateWord(_selContext, _currentWord);
+
+    if (result && result.translation) {
+      // 缓存到划词翻译缓存（不创建 SRS 条目，不影响自动标注）
+      _slCache[_currentWord] = { translation: result.translation, phonetic: result.phonetic || "" };
+      _saveSLCache();
+      _renderPopup(_currentWord, result.translation, result.phonetic, _selContext);
+    } else {
+      _popup.innerHTML = '<div class="tl-error">翻译失败，请检查 API 配置</div>';
+      _positionPopup(_selRect);
+    }
+  }
+
+  function _renderPopup(word, translation, phonetic, context) {
+    // 刷新 SRS 数据以获取最新状态
+    const entry = getWordState(word);
+    const state = shouldReview(word);
+    const wordLevel = getWordLevel(word);
+
+    const levelBadge = wordLevel
+      ? `<span class="tl-level" style="background:${LEVEL_COLORS[wordLevel] || '#6B7280'}">${wordLevel}</span>`
+      : "";
+
+    const phoneticHTML = phonetic
+      ? `<div class="tl-phonetic">${escapeHTML(phonetic)}</div>`
+      : "";
+
+    const contextHTML = (context && context !== word)
+      ? `<div class="tl-context">${escapeHTML(context)}</div>`
+      : "";
+
+    let addBtnHTML = "";
+    if (state === "mastered") {
+      addBtnHTML = `<span class="tl-add-btn mastered">已掌握</span>`;
+    } else if (entry && isUsableTranslation(entry.translation)) {
+      addBtnHTML = `<span class="tl-add-btn added">已在学习 ✓</span>`;
+    } else {
+      addBtnHTML = `<button class="tl-add-btn" id="tl-add-btn">+ 加入学习库</button>`;
+    }
+
+    _popup.innerHTML = `
+      <div class="tl-word">${escapeHTML(word)}${levelBadge}</div>
+      ${phoneticHTML}
+      <div class="tl-translation">${escapeHTML(translation)}</div>
+      ${contextHTML}
+      <div class="tl-actions">${addBtnHTML}</div>
+    `;
+
+    _positionPopup(_selRect);
+
+    // 绑定 [+] 按钮事件
+    const addBtn = _popup.querySelector("#tl-add-btn");
+    if (addBtn) {
+      addBtn.addEventListener("click", () => _addToLibrary(addBtn));
+    }
+  }
+
+  async function _addToLibrary(btn) {
+    await loadConfig();
+    await loadSRS();
+
+    let entry = getWordState(_currentWord);
+    if (!entry) {
+      entry = createWordEntry(_currentWord);
+    }
+    // 从划词缓存中补充翻译（如果条目翻译为空或来自划词操作）
+    if (_slCache[_currentWord]) {
+      if (!isUsableTranslation(entry.translation)) {
+        entry.translation = _slCache[_currentWord].translation;
+        entry.phonetic = _slCache[_currentWord].phonetic || "";
+      }
+    }
+    entry.contextSentence = _selContext || _currentWord;
+    entry.addedFrom = "manual";
+    await saveSRS();
+
+    btn.textContent = "已加入 ✓";
+    btn.classList.add("added");
+    btn.style.pointerEvents = "none";
+    btn.disabled = true;
+
+    _showToast("已加入学习库");
+  }
+
+  // ── Event Listeners ──
+
+  document.addEventListener("mouseup", _handleMouseUp);
+  document.addEventListener("mousedown", _handleMouseDown);
+
+  // 浮动按钮点击 → 翻译
+  _floatBtn.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+  _floatBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    _translateAndShow();
+  });
+
+  // 右键菜单 / 快捷键消息
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === "TRANSLATE_CONTEXT" || msg.type === "TRANSLATE_HOTKEY") {
+      const sel = window.getSelection();
+      const text = (sel && sel.toString()) ? sel.toString().trim() : "";
+      if (!text || text.length > 100) return;
+
+      try {
+        const range = sel.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        if (!rect || (rect.width === 0 && rect.height === 0)) return;
+
+        _selText = text;
+        _selContext = _getSelectionContext(sel);
+        _selRect = rect;
+        _translateAndShow();
+      } catch (_) {}
+    }
+  });
 
   waitForPageLoad();
 })();

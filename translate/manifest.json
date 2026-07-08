@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extension_name__",
-  "version": "2.3",
+  "version": "2.4",
   "default_locale": "zh_CN",
   "description": "__MSG_extension_description__",
   "icons": {
@@ -10,7 +10,8 @@
   },
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "contextMenus"
   ],
   "host_permissions": [
     "https://api.openai.com/*",
@@ -42,5 +43,14 @@
       "js": ["vocab-data.js", "content.js"],
       "run_at": "document_end"
     }
-  ]
+  ],
+  "commands": {
+    "translate-selection": {
+      "suggested_key": {
+        "default": "Alt+T",
+        "mac": "Alt+T"
+      },
+      "description": "Translate selected text"
+    }
+  }
 }

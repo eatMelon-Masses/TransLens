@@ -347,7 +347,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   $("clearCacheBtn")?.addEventListener("click", async () => {
     if (confirm("Clear cached translations and SRS learning data? Provider settings will be kept.")) {
-      await chrome.storage.local.remove(["srsData", "translationCache"]);
+      await chrome.storage.local.remove(["srsData", "translationCache", "translensSLCache"]);
       location.reload();
     }
   });
@@ -407,7 +407,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const banner = $("levelBanner");
     const manualSelect = $("manualLevel");
     const retakeBtn = $("retakeQuizBtn");
-    const isEnglish = (settings.sourceLang || "zh-CN") === "en";
+    const isEnglish = (settings.sourceLang || "zh-CN") === "en" || (settings.targetLang || "en") === "en";
 
     // 显示/隐藏 banner（旧用户未完成 onboarding）
     if (!settings.onboardingCompleted && stored && stored.settings) {
@@ -507,8 +507,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         $("onboardSourceLang").value = settings.sourceLang;
       }
     } else if (step === 2) {
-      if (onboardLang === "en") {
-        // 英语 → 自适应测试
+      if (onboardLang === "en" || settings.targetLang === "en") {
+        // 学习内容或目标语言为英语 → 自适应测试
         $("onboardStep2Quiz")?.classList.remove("hidden");
         startQuiz();
       } else {
@@ -593,6 +593,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!quiz) return;
     quiz.answer(false);
     renderQuizQuestion();
+  });
+
+  // 跳过测评 → 跳转到手动选择等级
+  $("skipQuizBtn")?.addEventListener("click", () => {
+    $("onboardStep2Quiz")?.classList.add("hidden");
+    $("onboardStep2Manual")?.classList.remove("hidden");
   });
 
   // Manual level next
