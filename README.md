@@ -133,6 +133,4 @@ MIT
 
 如果 TransLens 对你有帮助，欢迎请作者喝杯咖啡 ☕️
 
-| WeChat 微信赞赏 | Buy Me a Coffee |
-|:---:|:---:|
-| ![WeChat Tip](assets/wechat-tip.png) | [![Buy Me A Coffee](https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=☕&slug=z11764404&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff)](https://buymeacoffee.com/z11764404) |
+![WeChat Tip](assets/wechat-tip.png)
