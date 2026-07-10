@@ -43,20 +43,6 @@
 
 修改代码后，在扩展管理页点击刷新按钮即可，无需重新编译。
 
-### 配置 AI 接口
-
-选择「自定义（OpenAI 兼容）」后可填入任意兼容端点，以下为已验证可用的服务：
-
-| 服务 | 端点 | 说明 |
-|------|------|------|
-| **DeepSeek** | `https://api.deepseek.com/v1/chat/completions` | 性价比高，中文能力强 |
-| **豆包（Doubao）** | `https://ark.cn-beijing.volces.com/api/v3/chat/completions` | 字节火山引擎，中文场景表现优秀 |
-| **MiniMax** | `https://api.minimaxi.com/v1/chat/completions` | 支持思考模型，已兼容 `` 解析 |
-| **OneAPI 中转站** | 各中转站地址不同 | 统一 OpenAI 格式，填入中转站提供的地址和 Key 即可 |
-| **Ollama（本地）** | `http://localhost:11434/v1/chat/completions` | 默认值，无需联网 |
-
-> 如果你测试过其他接口，欢迎提 PR 补充到这张表里！
-
 ### 使用指南
 
 1. 安装后点击扩展图标进入设置
@@ -72,6 +58,20 @@
 
 - 源语言：中文（简体/繁体）、日文、韩文、法文、德文、西班牙文、俄文、阿拉伯文，或自定义正则表达式
 - 目标语言：英文、中文、日文、韩文、法文、德文、西班牙文
+
+### 自定义 AI 端点
+
+选择「自定义（OpenAI 兼容）」后可填入任意兼容端点，以下为已验证可用的服务：
+
+| 服务 | 端点 | 说明 |
+|------|------|------|
+| **DeepSeek** | `https://api.deepseek.com/v1/chat/completions` | 性价比高，中文能力强 |
+| **豆包（Doubao）** | `https://ark.cn-beijing.volces.com/api/v3/chat/completions` | 字节火山引擎，中文场景表现优秀 |
+| **MiniMax** | `https://api.minimaxi.com/v1/chat/completions` | 支持思考模型，已兼容 `` 解析 |
+| **OneAPI 中转站** | 各中转站地址不同 | 统一 OpenAI 格式，填入中转站提供的地址和 Key 即可 |
+| **Ollama（本地）** | `http://localhost:11434/v1/chat/completions` | 默认值，无需联网 |
+
+> 如果你测试过其他接口，欢迎提 PR 补充到这张表里！
 
 ## 下载
 
