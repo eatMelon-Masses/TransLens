@@ -19,8 +19,8 @@
 
 | | |
 |---|---|
-| ![划词翻译](assets/screenshot-translate.png) | ![自动标注](assets/screenshot-annotation.png) |
-| ![设置页面](assets/screenshot-settings.png) | ![扩展 Popup](assets/screenshot-popup.png) |
+| ![划词翻译](assets/screenshot-translate-strategic.png) | ![自动标注](assets/screenshot-annotation.png) |
+| ![水平测评](assets/screenshot-settings.png) | ![扩展 Popup](assets/screenshot-popup.png) |
 
 ## 功能
 
