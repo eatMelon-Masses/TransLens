@@ -17,9 +17,10 @@
 
 ## 截图
 
-| | | |
-|---|---|---|
-| ![Screenshot 1](https://lh3.googleusercontent.com/p0hytvmqgw17_c0nLcBkNy7VxwH2TrHc8RJK4ics_PIJUHBPtt0VHwc8cGkxaX_uwsjlM7couxaHYFWWzCaUq17Tmg=s1600-w1600-h1000) | ![Screenshot 2](https://lh3.googleusercontent.com/XxXFxUvUoj_T6nqnFkFa4B_lyBTcvFZ_peGlwYJ5EGt9Fhnq1drjeWgI6yjGaU4ez9hJOY_XJpXtHP9IKcWVqbG8zfY=s1600-w1600-h1000) | ![Screenshot 3](https://lh3.googleusercontent.com/AVw2c5obBw2KnTlzlb7ZH8OMdgeg5XVenkq7SNKJ7kXgu2qhMcX-7k9oE6csxxrDGu0EYv9YbslcAB4yy9JSri09uQ=s1600-w1600-h1000) |
+| | |
+|---|---|
+| ![划词翻译](assets/screenshot-translate.png) | ![自动标注](assets/screenshot-annotation.png) |
+| ![设置页面](assets/screenshot-settings.png) | ![扩展 Popup](assets/screenshot-popup.png) |
 
 ## 功能
 
